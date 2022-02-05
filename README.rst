@@ -6,20 +6,17 @@ This program, for each game label on a playlist, downloads the 'most similar' im
 
 It has several options to fit unusual game names, but you can just run it. It will ask for the CFG, playlist and system if they're not provided.
 
-To install the program, type on the cmd line
- `pip3 install libretro-fuzzythumbnails`
-Or for the latest git
- `pip3 install git+https://github.com/i30817/libretrofuzz.git`
-
-Example: the Retroplay WHDLoad set has names like `MonkeyIsland2_v1.3_0020` after a manual scan.
+Example: the Retroplay WHDLoad set has names like ``MonkeyIsland2_v1.3_0020`` after a manual scan.
 
 These names don't have subtitles, don't have spaces, and all the metadata is not separated from the name by parenthesis.
 
-To get a good number of hits in this set you could call
- `fuzzythumbnails --no-subtitle --rmspaces --before '_'`
+To get a good number of hits in this set you could call:
+ ``fuzzythumbnails --no-subtitle --rmspaces --before '_'``
 
-Or with probably more false positives (--no-meta is needed because it's applied to server thumbnail names too)
- `fuzzythumbnails --no-subtitle --rmspaces --no-meta --no-fail`
+Or with probably more false positives (--no-meta is needed because it's applied to server thumbnail names too):
+ ``fuzzythumbnails --no-subtitle --rmspaces --no-meta --no-fail``
+
+From a script, you can run
 
 Usage: fuzzythumbnails.py [OPTIONS] [CFG]
 
@@ -62,3 +59,11 @@ Options:
                               it or customize the installation.
   --help                      Show this message and exit.
 
+
+To install the program, type on the cmd line
+ ``pip3 install libretrofuzz``
+Or for the latest git
+ ``pip3 install git+https://github.com/i30817/libretrofuzz.git``
+
+To remove:
+ ``pip3 uninstall libretrofuzz``
