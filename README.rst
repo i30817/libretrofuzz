@@ -11,10 +11,10 @@ Example: the Retroplay WHDLoad set has names like ``MonkeyIsland2_v1.3_0020`` af
 These names don't have subtitles, don't have spaces, and all the metadata is not separated from the name by parenthesis.
 
 To get a good number of hits in this set you could call:
- ``fuzzythumbnails --no-subtitle --rmspaces --before '_'``
+ ``libretrofuzz --no-subtitle --rmspaces --before '_'``
 
 Or with probably more false positives (--no-meta is needed because it's applied to server thumbnail names too):
- ``fuzzythumbnails --no-subtitle --rmspaces --no-meta --no-fail``
+ ``libretrofuzz --no-subtitle --rmspaces --no-meta --no-fail``
 
 From a script, you can run
 

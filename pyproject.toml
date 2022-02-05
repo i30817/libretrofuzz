@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "libretrofuzz"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fuzzy Retroarch thumbnail downloader"
 authors = ["i30817 <i30817@gmail.com>"]
 license = "MIT"

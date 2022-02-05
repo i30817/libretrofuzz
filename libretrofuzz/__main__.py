@@ -61,7 +61,7 @@ def getThumbnailsPath(cfg: Path):
 	thumbnails_directory = os.path.expanduser(configParser['DUMMY']['thumbnails_directory'].strip('"'))
 	return Path(thumbnails_directory)
 
-def fuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file.'),
+def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file.'),
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails from.'),
 		fail: bool = typer.Option(True, help=f'Fail if the similarity score is under {CONFIDENCE}, --no-fail may cause false positives, but can increase matches in sets with nonstandard names.'),
@@ -235,6 +235,8 @@ def fuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file
 				#this removes many false positives and few false negatives.
 				return 0
 			else:
+				if s1 == s2:
+					return 200
 				return similarity + prefix
 		
 		#to make sure we have the highest similar name from the 3 possible directories, 
@@ -244,7 +246,7 @@ def fuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file
 		#with or without subtitles
 		norm = normalizer if subtitle else nosubtitle_normalizer
 		#with or without everything before the 'before' string
-		nameaux = name[0:before_index] if before_index != -1 else name
+		nameaux = name[0:before_index] + '.png' if before_index != -1 else name
 		thumbnail, i_max = process.extractOne(nameaux, remote_names, processor=norm, scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or not fail ):
@@ -278,7 +280,8 @@ def fuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {norm(nameaux)} -> {norm(thumbnail)}')
 
 def main():
-	typer.run(fuzz)
+	typer.run(mainaux)
+	return 0
 
 if __name__ == "__main__":
-	typer.run(fuzz)
+	typer.run(mainaux)
