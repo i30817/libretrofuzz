@@ -17,7 +17,7 @@ Or with probably more false positives (--no-meta is needed because it's applied 
  ``libretrofuzz --no-subtitle --rmspaces --no-meta --no-fail``
 
 
-Usage: fuzzythumbnails.py [OPTIONS] [CFG]
+#Usage: fuzzythumbnails.py [OPTIONS] [CFG]
 
 Arguments:
   [CFG]  Path to the retroarch cfg file.  [default:
