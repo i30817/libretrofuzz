@@ -16,7 +16,6 @@ To get a good number of hits in this set you could call:
 Or with probably more false positives (--no-meta is needed because it's applied to server thumbnail names too):
  ``libretrofuzz --no-subtitle --rmspaces --no-meta --no-fail``
 
-From a script, you can run
 
 Usage: fuzzythumbnails.py [OPTIONS] [CFG]
 
@@ -26,8 +25,9 @@ Arguments:
 
 Options:
   --playlist TEXT             Playlist name to download thumbnails for.
+                              If not provided, asked from the user.
   --system TEXT               Directory in the server to download thumbnails
-                              from.
+                              from. If not provided, asked from the user.
   --fail no-fail              Fail if the similarity score is under 100, --no-
                               fail may cause false positives, but can increase
                               matches in sets with nonstandard names.

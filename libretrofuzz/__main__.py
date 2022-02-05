@@ -61,8 +61,8 @@ def getThumbnailsPath(cfg: Path):
 	thumbnails_directory = os.path.expanduser(configParser['DUMMY']['thumbnails_directory'].strip('"'))
 	return Path(thumbnails_directory)
 
-def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file.'),
-		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for.'),
+def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not provided, asked from the user.'),
+		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails from.'),
 		fail: bool = typer.Option(True, help=f'Fail if the similarity score is under {CONFIDENCE}, --no-fail may cause false positives, but can increase matches in sets with nonstandard names.'),
 		meta: bool = typer.Option(True, help='Match name () delimited metadata, --no-meta may cause false positives, but can increase matches in sets with nonstandard names.'),
