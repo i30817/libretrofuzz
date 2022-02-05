@@ -117,8 +117,8 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)
 	
 	playlist = Path(playlist_dir, playlist)
-	thumb_dir = Path(getThumbnailsPath(cfg),system)
-	lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system)
+	thumb_dir = Path(getThumbnailsPath(cfg),str(playlist)[:-4])  #to allow playlists different thumbnail sources than the system name use the playlist name
+	lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system) #then get the thumbnails from the system name
 	names = []
 	
 	with open(playlist) as f:
@@ -263,7 +263,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 					p = Path(p, shortname)
 					#if a new match has better chance than a old, remove the old symlink
 					#on unpriviledged windows, nothing is a symlink
-					if p.is_symlink() or (p.exists() and os.path.getsize(p) == 0):
+					if shortname != name and p.is_symlink() or (p.exists() and os.path.getsize(p) == 0):
 						try:
 							os.unlink(p)
 						except Exception as e:
@@ -277,15 +277,16 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 							except Exception as e:
 								print(e)
 								p.unlink(missing_ok=True)
-					try:
-						os.unlink(name)
-					except Exception as e:
-						pass
-					try:
-						os.symlink(shortname,name)
-					except OSError as e:
-						#windows unprivileged users can't create symlinks
-						shutil.copyfile(shortname,name)
+					if shortname != name:
+						try:
+							os.unlink(name)
+						except Exception as e:
+							pass
+						try:
+							os.symlink(shortname,name)
+						except OSError as e:
+							#windows unprivileged users can't create symlinks
+							shutil.copyfile(shortname,name)
 			os.chdir(o)
 		else:
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {norm(nameaux)} -> {norm(thumbnail)}')
