@@ -259,15 +259,23 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 					os.makedirs(p, exist_ok=True)
 					os.chdir(p)
 					p = Path(p, shortname)
+					#if a new match has better chance than a old, remove the old symlink
+					#on unpriviledged windows, nothing is a symlink and the 
+					#overwrite will happen on the while
+					if p.is_symlink():
+						try:
+							os.unlink(p)
+						except Exception as e:
+							pass
 					while not p.exists():
-						with open(p, 'wb') as f:
+						with open(p, 'w+b') as f:
 							try:
 								f.write(urlopen(thumbmap[thumbnail], timeout=10).read())
 							except Exception as e:
 								print(e)
 								p.unlink(missing_ok=True)
 					try:
-						os.unlink(name) #symlink, normal file or not existing, always try to remove
+						os.unlink(name)
 					except Exception as e:
 						pass
 					try:
