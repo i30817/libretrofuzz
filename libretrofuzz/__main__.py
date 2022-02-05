@@ -273,7 +273,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 					while not p.exists():
 						with open(p, 'w+b') as f:
 							try:
-								f.write(urlopen(thumbmap[thumbnail], timeout=10).read())
+								f.write(urlopen(thumbmap[thumbnail], timeout=30).read())
 							except Exception as e:
 								print(e)
 								p.unlink(missing_ok=True)
