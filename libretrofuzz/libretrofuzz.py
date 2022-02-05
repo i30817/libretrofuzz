@@ -277,5 +277,8 @@ def fuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file
 		else:
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {norm(nameaux)} -> {norm(thumbnail)}')
 
+def main():
+	typer.run(fuzz)
+
 if __name__ == "__main__":
-	typer.run(main)
+	typer.run(fuzz)
