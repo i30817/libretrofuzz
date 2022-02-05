@@ -261,7 +261,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 					p = Path(p, shortname)
 					#if a new match has better chance than a old, remove the old symlink
 					#on unpriviledged windows, nothing is a symlink
-					if p.is_symlink() or os.path.getsize(p) == 0:
+					if p.is_symlink() or (p.exists() and os.path.getsize(p) == 0):
 						try:
 							os.unlink(p)
 						except Exception as e:
