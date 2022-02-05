@@ -202,7 +202,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			t = t.replace('Le ',  '')
 			t = t.replace('\'',  '')
 			#remove all punctuation
-			t = replacemany(t, '.!?', '')			
+			t = replacemany(t, '.!?#', '')			
 			#remove all metacharacters
 			t = replacemany(t, '_()[]{},-', ' ')
 			if rmspaces:
