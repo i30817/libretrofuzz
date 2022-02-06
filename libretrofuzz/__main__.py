@@ -65,7 +65,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails from.'),
 		fail: bool = typer.Option(True, help=f'Fail if the similarity score is under {CONFIDENCE}, --no-fail may cause false positives, but can increase matches in sets with nonstandard names.'),
-		meta: bool = typer.Option(False, help='Match name () delimited metadata, --no-meta may cause false positives, but can increase matches in sets with nonstandard names.'),
+		meta: bool = typer.Option(True, help='Match name () delimited metadata, --no-meta may cause false positives, but can increase matches in sets with nonstandard names.'),
 		dump: bool = typer.Option(False, help='Match name [] delimited metadata, --dump may cause false positives, but can increase matches for hacks, if the hack has thumbnails.'),
 		subtitle: bool = typer.Option(True, help='Match name before the last hyphen, --no-subtitle may cause false positives, but can increase matches in sets with incomplete names.'),
 		rmspaces: bool = typer.Option(False, help='Instead of uniquifying spaces in normalization, remove them, --rmspaces may cause false negatives, but some sets do not have spaces in the title. Best used with --no-dump --no-meta --no-subtitle.'),
@@ -174,13 +174,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 				before_index = no_meta.group(1).find(before)
 		#only the local names should have forbidden characters
 		name = re.sub(forbidden, '_', name )
-		#the shortname will have the 'main' thumbnail download if there are multiple versions,
-		#and will be symlinked by possibly multiple names, so it should remove metadata to only download once
-		shortname = removeparenthesis(name,'(',')')
-		shortname = removeparenthesis(shortname,'[',']')
-		shortname = removeparenthesis(shortname,'{','}')
-		
-		shortname = shortname.strip() + '.png'
 		name = name + '.png'
 
 		def replacemany(our_str, to_be_replaced, replace_with):
@@ -269,13 +262,11 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 					p = Path(thumb_dir, dirname)
 					os.makedirs(p, exist_ok=True)
 					os.chdir(p)
-					p = Path(p, shortname)
-					#if a new match has better chance than a old, remove the old symlink
-					#on unpriviledged windows, nothing is a symlink
-					if p.is_symlink() or (p.exists() and os.path.getsize(p) == 0):
+					p = Path(p, name)
+					#broken file
+					if p.exists() and os.path.getsize(p) == 0:
 						p.unlink(missing_ok=True)
-					
-					#will only happen if the user deletes a existing image, but 
+					#will only happen if a new image or the user deletes a existing image,
 					#still opened in w+b mode in case i change my mind
 					while not p.exists():
 						with open(p, 'w+b') as f:
@@ -284,14 +275,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 							except Exception as e:
 								print(e)
 								p.unlink(missing_ok=True)
-					if shortname != name:
-						Path(name).unlink(missing_ok=True)
-						try:
-							os.symlink(shortname,name)
-						except OSError as e:
-							#print(e)
-							#windows unprivileged users can't create symlinks
-							shutil.copyfile(shortname,name)
 			os.chdir(o)
 		else:
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {norm(nameaux)} -> {norm(thumbnail)}')
