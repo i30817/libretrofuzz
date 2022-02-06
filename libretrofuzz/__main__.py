@@ -268,12 +268,14 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 						p.unlink(missing_ok=True)
 					#will only happen if a new image or the user deletes a existing image,
 					#still opened in w+b mode in case i change my mind
-					while not p.exists():
+					retry_count = 5
+					while not p.exists() and retry_count > 0:
 						with open(p, 'w+b') as f:
 							try:
 								f.write(urlopen(thumbmap[thumbnail], timeout=30).read())
 							except Exception as e:
 								print(e)
+								retry_count = retry_count - 1
 								p.unlink(missing_ok=True)
 			os.chdir(o)
 		else:
