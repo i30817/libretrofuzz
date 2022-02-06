@@ -34,7 +34,8 @@ Options:
                               [default: fail]
   --meta no-meta              Match name () delimited metadata, --no-meta may
                               cause false positives, but can increase matches
-                              in sets with nonstandard names.  [default: meta]
+                              in sets with nonstandard names.
+                              [default: meta]
   --dump no-dump              Match name [] delimited metadata, --dump may
                               cause false positives, but can increase matches
                               for hacks, if the hack has thumbnails.
