@@ -73,13 +73,13 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	):
 	if not cfg.exists() or not cfg.is_file():
 		typer.echo(f'Invalid Retroarch cfg file: {cfg}')
-		raise typer.Abort()		
+		raise typer.Abort()
 	
 	playlist_dir = getPlaylistsPath(cfg)
 	
 	if not playlist_dir.exists() or not playlist_dir.is_dir():
 		typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
-		raise typer.Abort()		
+		raise typer.Abort()
 	
 	PLAYLISTS = list(playlist_dir.glob('./*.lpl'))
 	
@@ -117,18 +117,19 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)
 	
 	playlist = Path(playlist_dir, playlist)
-	thumb_dir = Path(getThumbnailsPath(cfg),str(playlist)[:-4])  #to allow playlists different thumbnail sources than the system name use the playlist name
+	destination = os.path.basename(playlist)[:-4] #to allow playlists different thumbnail sources than the system name use the playlist name
+	thumb_dir = Path(getThumbnailsPath(cfg),destination) 
 	lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system) #then get the thumbnails from the system name
 	names = []
 	
 	with open(playlist) as f:
 		data = json.load(f)
-		for r in data['items']:	
+		for r in data['items']:
 			names.append(r['label'])
 			
 	if len(names) == 0:
 		typer.echo(f'No names found in playlist {playlist}')
-		raise typer.Abort()	
+		raise typer.Abort()
 	
 	thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Snaps', 'Named_Titles'])
 	args = []
@@ -140,10 +141,10 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		except HTTPError as err:
 			l1 = {} #some do not have one or more of these
 		args.append(l1)
-
+	
 	if all(map(lambda x: len(x) == 0, args)):
 		typer.echo(f'No thumbnails found at {lr_thumbs}')
-		raise typer.Abort()		
+		raise typer.Abort()
 	
 	thumbs = thumbs._make( args )
 	
@@ -151,6 +152,13 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	if before:
 		dump = False
 		meta = False
+	
+	def removeparenthesis(s, open_p='(', close_p=')'):
+		nb_rep = 1
+		while (nb_rep):
+			a = fr'\{open_p}[^{close_p}{open_p}]*\{close_p}'
+			(s, nb_rep) = re.subn(a, '', s)
+		return s
 	
 	for name in names:
 		#this is tricky: to be able to see the thumbnails, 
@@ -168,8 +176,9 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		name = re.sub(forbidden, '_', name )
 		#the shortname will have the 'main' thumbnail download if there are multiple versions,
 		#and will be symlinked by possibly multiple names, so it should remove metadata to only download once
-		shortname = re.sub(r'\([^)]*\)', '', name)
-		shortname = re.sub(r'\[[^]]*\]', '', shortname)
+		shortname = removeparenthesis(name,'(',')')
+		shortname = removeparenthesis(shortname,'[',']')
+		shortname = removeparenthesis(shortname,'{','}')
 		
 		shortname = shortname.strip() + '.png'
 		name = name + '.png'
@@ -178,14 +187,14 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			for nextchar in to_be_replaced:
 				our_str = our_str.replace(nextchar, replace_with)
 			return our_str
-		
+
 		def normalizer(t):
 			#remove extension for possible strip and to shorten the string length
 			t = t[:-4]
 			if not meta:
-				t = re.sub(r'\([^)]*\)', '', t)
+				t = removeparenthesis(t,'(',')')
 			if not dump:
-				t = re.sub(r'\[[^]]*\]', '', t)
+				t = removeparenthesis(t,'[',']')
 			t = t.replace('VIII', '8')
 			t = t.replace('VII',  '7')
 			t = t.replace('VI' ,  '6')
@@ -204,7 +213,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			t = t.replace('La ',  '')
 			t = t.replace('\'',  '')
 			#remove all punctuation
-			t = replacemany(t, '.!?#', '')			
+			t = replacemany(t, '.!?#', '')
 			#remove all metacharacters
 			t = replacemany(t, '_()[]{},-', ' ')
 			if rmspaces:
@@ -212,7 +221,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			else:
 				t = re.sub('\s+', ' ', t).lower().strip()
 			return t
-			
+
 		def nosubtitle_normalizer(t):
 			#Ignore metadata and get the string before it
 			no_meta = re.search(r'(^[^[({]*)', t)
@@ -221,7 +230,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 				if subtitle:
 					t = t[0:subtitle.start(1)] + ' ' + t[subtitle.end(1):]
 			return normalizer(t)
-		
+
 		def myscorer(s1, s2, force_ascii=True, full_process=True):
 			similarity = fuzz.token_set_ratio(s1,s2,force_ascii,full_process)
 			#combine the token set ratio scorer with a common prefix heuristic to give priority to longer similar names
@@ -242,7 +251,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 				return similarity + prefix
 		
 		#to make sure we have the highest similar name from the 3 possible directories, 
-		#check them and chose the 'highest' for all, if it actually exists.	
+		#check them and chose the 'highest' for all, if it actually exists.
 		remote_names = set()
 		remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Snaps.keys(), thumbs.Named_Titles.keys())
 		#with or without subtitles
@@ -263,11 +272,9 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 					p = Path(p, shortname)
 					#if a new match has better chance than a old, remove the old symlink
 					#on unpriviledged windows, nothing is a symlink
-					if shortname != name and p.is_symlink() or (p.exists() and os.path.getsize(p) == 0):
-						try:
-							os.unlink(p)
-						except Exception as e:
-							pass
+					if p.is_symlink() or (p.exists() and os.path.getsize(p) == 0):
+						p.unlink(missing_ok=True)
+					
 					#will only happen if the user deletes a existing image, but 
 					#still opened in w+b mode in case i change my mind
 					while not p.exists():
@@ -278,13 +285,11 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 								print(e)
 								p.unlink(missing_ok=True)
 					if shortname != name:
-						try:
-							os.unlink(name)
-						except Exception as e:
-							pass
+						Path(name).unlink(missing_ok=True)
 						try:
 							os.symlink(shortname,name)
 						except OSError as e:
+							#print(e)
 							#windows unprivileged users can't create symlinks
 							shutil.copyfile(shortname,name)
 			os.chdir(o)
