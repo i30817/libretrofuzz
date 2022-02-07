@@ -282,6 +282,12 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {norm(nameaux)} -> {norm(thumbnail)}')
 
 def main():
+"""
+This program downloads covers from the libretro thumbnails server and adapts their names to current playlist names.
+To update this program with pip installed, type:
+
+pip3 install git+https://github.com/i30817/libretrofuzz.git
+"""
 	typer.run(mainaux)
 	return 0
 
