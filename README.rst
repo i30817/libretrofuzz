@@ -10,11 +10,8 @@ Example: the Retroplay WHDLoad set has names like ``MonkeyIsland2_v1.3_0020`` af
 
 These names don't have subtitles, don't have spaces, and all the metadata is not separated from the name by parenthesis.
 
-To get a good number of hits in this set you could call``:``
+  To get a good number of hits in this set you could call:
  ``libretrofuzz --no-subtitle --rmspaces --before '_'``
-
-Or with probably more false positives (--no-meta is needed because it's applied to server thumbnail names too)``:``
- ``libretrofuzz --no-subtitle --rmspaces --no-meta --no-fail``
 
 Then select the playlist that contains those whdloads and the system name `Commodore - Amiga` to download from the libretro amiga thumbnails.
 
@@ -24,7 +21,7 @@ If your playlist contains games from multiple releases (like ScummVM), be carefu
 
 Example: After downloading thumbnails for 'ScummVM' (and not before, to minimize false positives), we'd like to try to pickup a few covers from the DOS database.
 
-You could call``:``
+  You could call:
   ``libretrofuzz --no-meta``
 
 Then chose the ScummVM playlist and DOS system name, and a few extra covers would be downloaded at the cost of these types of false positives: CD vs floppy covers, USA vs Japan covers, or another platform vs DOS.
@@ -35,11 +32,11 @@ False positives will then mostly be from the thumbnail server not having a singl
 
 **Usage: fuzzythumbnails.py [OPTIONS] [CFG]**
 
-Arguments``:``
+  Arguments:
   [CFG]  Path to the retroarch cfg file. If not provided, asked from the user.
          [default: ~/.config/retroarch/retroarch.cfg]
 
-Options``:``
+  Options:
   --playlist TEXT             Playlist name to download thumbnails for. If not
                               provided, asked from the user.
   --system TEXT               Directory in the server to download thumbnails
