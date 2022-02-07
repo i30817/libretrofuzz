@@ -4,7 +4,7 @@
 #this downloads thumbnails for retroarch playlists
 #it uses fuzzy matching to find the most similar name to the names, based on the playlist description.
 #there may be false positives, especially if the thumbnail server does not have the game but does have
-#another similarly named game - happens on series a lot.
+#another similarly named game - happens on series or playlists where multiple versions of a game coexist.
 
 #Although a game playlist entry may have a different db this script doesn't handle that to simplify
 #the caching of names, since it's rare, so it assumes all entries in a playlist will have the same system.
@@ -236,7 +236,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 				#ideally this branch wouldn't exist, but since many games do not have
 				#images, they get caught up on a short title '100' from token_set_ratio
 				#without the real title to win the similarity+prefix heuristic
-				#this removes many false positives and few false negatives.
+				#this removes many false positives and causes few false negatives.
 				return 0
 			else:
 				if s1 == s2:
