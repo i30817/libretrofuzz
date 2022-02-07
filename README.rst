@@ -2,29 +2,24 @@
 
 In Retroarch, when you use the manual scanner to get non-standard games or hacks, thumbnails often fail to download. 
 
-This program, for each game label on a playlist, downloads the 'most similar' image, and creates a symlink (linux) or copy (windows) to display the image in retroarch.
+This program, for each game label on a playlist, downloads the 'most similar' image to display the image in retroarch.
 
-It has several options to fit unusual game names, but you can just run it. It will ask for the CFG, playlist and system if they're not provided.
+It has several options to fit unusual names, but you can just run it. It will ask for the CFG, playlist and system if they're not provided.
 
-Example: the Retroplay WHDLoad set has names like ``MonkeyIsland2_v1.3_0020`` after a manual scan.
-
-These names don't have subtitles, don't have spaces, and all the metadata is not separated from the name by parenthesis.
-
-To get a good number of hits in this set you could call: 
+Example:
  ``libretrofuzz --no-subtitle --rmspaces --before '_'``
-
-Then select the playlist that contains those whdloads and the system name `Commodore - Amiga` to download from the libretro amiga thumbnails.
+ 
+ The Retroplay WHDLoad set has names like ``MonkeyIsland2_v1.3_0020`` after a manual scan. These names don't have subtitles, don't have spaces, and all the metadata is not separated from the name by parenthesis. Then select the playlist that contains those whdloads and the system name `Commodore - Amiga` to download from the libretro amiga thumbnails.
 
 Note that the system name you download from doesn't have to be the same as the playlist name.
 
 If your playlist contains games from multiple releases (like ScummVM), be careful using this trick because it's easy to end up with 'slightly wrong' covers.
 
-Example: After downloading thumbnails for 'ScummVM' (and not before, to minimize false positives), we'd like to try to pickup a few covers from the DOS database.
-
-You could call: 
-  ``libretrofuzz --no-meta``
-
-Then chose the ScummVM playlist and DOS system name, and a few extra covers would be downloaded at the cost of these types of false positives: CD vs floppy covers, USA vs Japan covers, or another platform vs DOS.
+Example:
+ ``libretrofuzz --no-meta``
+ 
+ After downloading thumbnails for 'ScummVM' (and not before, to minimize false positives), we'd like to try to pickup a few covers from the DOS database.
+ Then choose the ScummVM playlist and DOS system name, and covers would be downloaded with risk of false positives: CD vs floppy covers, USA vs Japan covers, or another platform vs DOS.
 
 Because of this the default is to count metadata as part of the matching, and the default pre-selected system name to be the same as the playlist name, which is safest.
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting a sequel or prequel as the 'most similar', or from the server not having a different cover for releases and getting the 'wrong' one (if libretro doesn't have japanese covers and the set has english names with (Japan) appened only, you're likely to get a english cover even in the same system).
@@ -32,11 +27,11 @@ False positives will then mostly be from the thumbnail server not having a singl
 
 **Usage: fuzzythumbnails [OPTIONS] [CFG]**
 
-Arguments: 
+Arguments:
   [CFG]  Path to the retroarch cfg file. If not provided, asked from the user.
-         [default: ~/.config/retroarch/retroarch.cfg]
+  [default: ~/.config/retroarch/retroarch.cfg]
 
-Options: 
+Options:
   --playlist TEXT             Playlist name to download thumbnails for. If not
                               provided, asked from the user.
   --system TEXT               Directory in the server to download thumbnails
