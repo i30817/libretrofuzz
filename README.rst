@@ -22,7 +22,7 @@ Example:
  Then choose the ScummVM playlist and DOS system name, and covers would be downloaded with risk of false positives: CD vs floppy covers, USA vs Japan covers, or another platform vs DOS.
 
 Because of this the default is to count metadata as part of the matching, and the default pre-selected system name to be the same as the playlist name, which is safest.
-False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting a sequel or prequel as the 'most similar', or from the server not having a different cover for releases and getting the 'wrong' one (if libretro doesn't have japanese covers and the set has english names with (Japan) appened only, you're likely to get a english cover even in the same system).
+False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting a sequel or prequel as the 'most similar', or from the server not having a different cover for releases and getting the 'wrong' one (if libretro doesn't have japanese covers and the set has english names with (Japan) appended, you're likely to get a english cover even in the same system).
 
 
 **Usage: fuzzythumbnails [OPTIONS] [CFG]**
