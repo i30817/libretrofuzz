@@ -1,5 +1,8 @@
 #! /usr/bin/env python3
-#dependency install: pip3 install thefuzz thefuzz[speedup] beautifulsoup4 typer[all] pick
+
+
+
+#dependency install for testing: pip3 install thefuzz thefuzz[speedup] beautifulsoup4 typer[all] pick
 
 #this downloads thumbnails for retroarch playlists
 #it uses fuzzy matching to find the most similar name to the names, based on the playlist description.
@@ -8,6 +11,7 @@
 
 #Although a game playlist entry may have a different db this script doesn't handle that to simplify
 #the caching of names, since it's rare, so it assumes all entries in a playlist will have the same system.
+
 
 
 
@@ -71,6 +75,12 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		rmspaces: bool = typer.Option(False, help='Instead of uniquifying spaces in normalization, remove them, --rmspaces may cause false negatives, but some sets do not have spaces in the title. Best used with --no-dump --no-meta --no-subtitle.'),
 		before: Optional[str] = typer.Option(None, help='Use only the part of the name before TEXT to match. TEXT may not be inside of a parenthesis of any kind. This operates only on the playlist names, implies --nodump and --no-meta and may cause false positives but some sets do not have traditional separators.')
 	):
+	"""
+	libretrofuzz downloads covers from the libretro thumbnails server and adapts their names to current playlist names.
+	To update this program with pip installed, type:
+
+	pip3 install git+https://github.com/i30817/libretrofuzz.git
+	"""
 	if not cfg.exists() or not cfg.is_file():
 		typer.echo(f'Invalid Retroarch cfg file: {cfg}')
 		raise typer.Abort()
@@ -282,12 +292,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {norm(nameaux)} -> {norm(thumbnail)}')
 
 def main():
-"""
-This program downloads covers from the libretro thumbnails server and adapts their names to current playlist names.
-To update this program with pip installed, type:
-
-pip3 install git+https://github.com/i30817/libretrofuzz.git
-"""
 	typer.run(mainaux)
 	return 0
 
