@@ -5,7 +5,7 @@ In Retroarch, when you use the manual scanner to get non-standard games or hacks
 
 This program, for each game label on a playlist, downloads the 'most similar' image to display the image in retroarch.
 
-It has several options to fit unusual names, but you can just run it. It will ask for the CFG, playlist and system if they're not provided.
+It has several options to fit unusual names, but you can just run it to get the most restrictive default. It will ask for the CFG, playlist and system if they're not provided.
 
 Example:
  ``libretrofuzz --no-subtitle --rmspaces --before '_'``
