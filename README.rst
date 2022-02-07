@@ -39,7 +39,7 @@ Options:
   --playlist TEXT             Playlist name to download thumbnails for. If not
                               provided, asked from the user.
   --system TEXT               Directory in the server to download thumbnails
-                              from.
+                              from. If not provided, asked from the user.
   --fail, --no-fail           Fail if the similarity score is under 100, --no-
                               fail may cause false positives, but can increase
                               matches in sets with nonstandard names.
