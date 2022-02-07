@@ -1,4 +1,5 @@
-  **Fuzzy Retroarch thumbnail downloader**
+**Fuzzy Retroarch thumbnail downloader**
+========================================
 
 In Retroarch, when you use the manual scanner to get non-standard games or hacks, thumbnails often fail to download. 
 
