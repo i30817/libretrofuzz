@@ -209,6 +209,25 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			t = re.sub('\s+', ' ', t).lower().strip()
 		return t
 	
+	def myscorer(s1, s2, force_ascii=True, full_process=True):
+		similarity = fuzz.token_set_ratio(s1,s2,force_ascii,full_process)
+		#combine the token set ratio scorer with a common prefix heuristic to give priority to longer similar names
+		#This helps prevents false positives for shorter strings
+		#which token set ratio is prone to because it sets score to 100
+		#if one string words are completely on the other
+		
+		prefix = len(os.path.commonprefix([s1, s2]))
+		if prefix <= 2 and len(s1) != len(s2):
+			#ideally this branch wouldn't exist, but since many games do not have
+			#images, they get caught up on a short title '100' from token_set_ratio
+			#without the real title to win the similarity+prefix heuristic
+			#this removes many false positives and causes few false negatives.
+			return 0
+		else:
+			if s1 == s2:
+				return 200
+			return similarity + prefix
+			
 	def nosubtitle_normalizer(t):
 		#Ignore metadata and get the string before it
 		no_meta = re.search(r'(^[^[({]*)', t)
@@ -219,13 +238,14 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		return normalizer(t)
 	
 	#preprocess data so it's not redone every loop iteration.
-
+	
 	#normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
 	norm = normalizer if subtitle else nosubtitle_normalizer
-	
-	remote_names = set() #we choose the highest similarity of all 3 directories, since no mixed matches are allowed
+	#we choose the highest similarity of all 3 directories, since no mixed matches are allowed
+	remote_names = set()
 	remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Snaps.keys(), thumbs.Named_Titles.keys())
-	remote_names = map(norm, remote_names)
+	#turn into a list of tuples, original and normalized
+	remote_names = list(map(lambda x: (x, norm(x)), remote_names))
 	
 	for name in names:
 		#this is tricky: to be able to see the thumbnails, 
@@ -243,28 +263,10 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		name = re.sub(forbidden, '_', name )
 		name = name + '.png'
 		
-		def myscorer(s1, s2, force_ascii=True, full_process=True):
-			similarity = fuzz.token_set_ratio(s1,s2,force_ascii,full_process)
-			#combine the token set ratio scorer with a common prefix heuristic to give priority to longer similar names
-			#This helps prevents false positives for shorter strings
-			#which token set ratio is prone to because it sets score to 100
-			#if one string words are completely on the other
-			
-			prefix = len(os.path.commonprefix([s1, s2]))
-			if prefix <= 2 and len(s1) != len(s2):
-				#ideally this branch wouldn't exist, but since many games do not have
-				#images, they get caught up on a short title '100' from token_set_ratio
-				#without the real title to win the similarity+prefix heuristic
-				#this removes many false positives and causes few false negatives.
-				return 0
-			else:
-				if s1 == s2:
-					return 200
-				return similarity + prefix
-		
 		#with or without everything before the 'before' string
 		nameaux = name[0:before_index] + '.png' if before_index != -1 else name
-		thumbnail, i_max = process.extractOne(norm(nameaux), remote_names, processor=None, scorer=myscorer)
+		#operate on tuples to have a inbuilt cache (to speed up by not applying normalization every iteration)
+		(thumbnail, _), i_max = process.extractOne((_,norm(nameaux)), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or not fail ):
 			print("{:>5}".format(str(i_max)+'% ') + f'Success: {norm(nameaux)} -> {norm(thumbnail)}')
