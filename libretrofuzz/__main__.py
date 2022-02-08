@@ -79,7 +79,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	libretrofuzz downloads covers from the libretro thumbnails server and adapts their names to current playlist names.
 	To update this program with pip installed, type:
 
-	pip3 install git+https://github.com/i30817/libretrofuzz.git
+	pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git
 	"""
 	if not cfg.exists() or not cfg.is_file():
 		typer.echo(f'Invalid Retroarch cfg file: {cfg}')

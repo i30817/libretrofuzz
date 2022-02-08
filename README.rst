@@ -75,5 +75,8 @@ Options:
 To install the program, type on the cmd line
  ``pip3 install git+https://github.com/i30817/libretrofuzz.git``
 
-To remove:
+To upgrade the program
+ ``pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git``
+
+To remove
  ``pip3 uninstall libretrofuzz``
