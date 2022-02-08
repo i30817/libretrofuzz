@@ -170,6 +170,11 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			(s, nb_rep) = re.subn(a, '', s)
 		return s
 	
+	#to make sure we have the highest similar name from the 3 possible directories, 
+	#check them and chose the 'highest' for all, if it actually exists.
+	remote_names = set()
+	remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Snaps.keys(), thumbs.Named_Titles.keys())
+	
 	for name in names:
 		#this is tricky: to be able to see the thumbnails, 
 		#the filenames must match the playlist labels, minus forbidden characters
@@ -253,10 +258,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 					return 200
 				return similarity + prefix
 		
-		#to make sure we have the highest similar name from the 3 possible directories, 
-		#check them and chose the 'highest' for all, if it actually exists.
-		remote_names = set()
-		remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Snaps.keys(), thumbs.Named_Titles.keys())
 		#with or without subtitles
 		norm = normalizer if subtitle else nosubtitle_normalizer
 		#with or without everything before the 'before' string
