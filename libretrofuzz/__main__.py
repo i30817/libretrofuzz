@@ -42,7 +42,7 @@ CONFIDENCE = 100
 
 CONFIG = Path(Path.home(), '.config', 'retroarch', 'retroarch.cfg')
 
-#00-1f are ascii control codes, rest is 'normal' illegal windows filename chars according to powershell
+#00-1f are ascii control codes, rest is 'normal' illegal windows filename chars according to powershell + &
 forbidden	=	r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008' + \
 				r'\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015' + \
 				r'\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u003a\u002a\u003f\u005c\u002f\u0026]' 
@@ -147,7 +147,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		lr_thumb = lr_thumbs+tdir
 		try:
 			soup = BeautifulSoup(urlopen(lr_thumb, timeout=10), 'html.parser')
-			l1 = { unquote(Path(node.get('href')).name) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
+			l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
 		except HTTPError as err:
 			l1 = {} #some do not have one or more of these
 		args.append(l1)
@@ -176,8 +176,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		return our_str
 	
 	def normalizer(t):
-		#remove extension for possible strip and to shorten the string length
-		t = t[:-4]
 		if not meta:
 			t = removeparenthesis(t,'(',')')
 		if not dump:
@@ -198,6 +196,12 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		t = t.replace('Le ',  '')
 		t = t.replace(', La', '')
 		t = t.replace('La ',  '')
+		t = t.replace(', Der', '')
+		t = t.replace('Der ',  '')
+		t = t.replace(', Die', '')
+		t = t.replace('Die ',  '')
+		t = t.replace(', Das', '')
+		t = t.replace('Das ',  '')
 		t = t.replace('\'',  '')
 		#remove all punctuation
 		t = replacemany(t, '.!?#', '')
@@ -227,14 +231,19 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			if s1 == s2:
 				return 200
 			return similarity + prefix
-			
-	def nosubtitle_normalizer(t):
+	
+	def nosubtitle(t,subtitle_marker=' - '):
 		#Ignore metadata (but do not delete) and get the string before it
 		no_meta = re.search(r'(^[^[({]*)', t)
-		subtitle = re.search(r'( - .*)(?:\.png)', no_meta.group(1) if no_meta else t)
+		#last subtitle marker and everything there until the end (last because i noticed that 'subsubtitles' exist, 
+		#for instance, ultima 7 - part 1|2 - subtitle
+		subtitle = re.search(rf'.*({subtitle_marker}.*)', no_meta.group(1) if no_meta else t)
 		if subtitle:
 			t = t[0:subtitle.start(1)] + ' ' + t[subtitle.end(1):]
-		return normalizer(t)
+		return t
+	
+	def nosubtitle_normalizer(t):
+		return normalizer(nosubtitle(t))
 	
 	#preprocess data so it's not redone every loop iteration.
 	
@@ -247,28 +256,41 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	remote_names = list(map(lambda x: (x, norm(x)), remote_names))
 	
 	for name in names:
-		#this is tricky: to be able to see the thumbnails, 
-		#the filenames must match the playlist labels, minus forbidden characters
-		#but to allow the 'before' command, the string sent to fuzzy matching must not have things after 'before'
-		#in order to not find the wrong 'before' if the before string is '_' (the forbidden chararacter replacement)
-		#which it is in the example and set that inspired this, save just the index, then send the substring for fuzzy matching
-		before_index = -1
+		#to simplify this code, the forbidden characters are replaced twice, 
+		#on the string that is going to be the filename and the modified string copy of that that is going to be matched.
+		#it could be done only once, but that would require separating the colon character for subtitle matching,
+		#and the 'before' operation would have to find the index before the match to apply it after. A mess.
+		
+		nameaux = name
+		
+		#'before' has priority over subtitle removal
 		if before:
 			#Ignore metadata and get the string before it
-			no_meta = re.search(r'(^[^[({]*)', name)
+			no_meta = re.search(r'(^[^[({]*)', nameaux)
 			if no_meta:
 				before_index = no_meta.group(1).find(before)
+				if before_index != -1:
+					nameaux = nameaux[0:before_index]
+		
+		#there is a second form of subtitles, which doesn't appear in the thumbnail server directly but can appear in linux game names
+		#that can be more faithful to the real name. It uses the colon character, which is forbidden in windows and only applies to filenames.
+		#Note that this does mean that if the servername has 'Name_ subtitle.png' and not 'Name - subtitle.png' there is less chance of a match,
+		#but that is rarer on the server than the opposite.
+		#not to mention that this only applies if the user signals 'no-subtitle', which presumably means they tried without it - which does match.
+		if not subtitle:
+			nameaux = nosubtitle(nameaux, ': ')
+		
 		#only the local names should have forbidden characters
 		name = re.sub(forbidden, '_', name )
-		name = name + '.png'
-		
-		#with or without everything before the 'before' string
-		nameaux = name[0:before_index] + '.png' if before_index != -1 else name
+		nameaux = re.sub(forbidden, '_', nameaux )
+		#unlike the server thumbnails, this wasn't done yet
+		nameaux = norm(nameaux)
+
 		#operate on tuples to have a inbuilt cache (to speed up by not applying normalization every iteration)
-		(thumbnail, _), i_max = process.extractOne((_,norm(nameaux)), remote_names, processor=lambda x: x[1], scorer=myscorer)
+		(thumbnail, _), i_max = process.extractOne((_,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or not fail ):
-			print("{:>5}".format(str(i_max)+'% ') + f'Success: {norm(nameaux)} -> {norm(thumbnail)}')
+			print("{:>5}".format(str(i_max)+'% ') + f'Success: {nameaux} -> {norm(thumbnail)}')
 			o = os.getcwd()
 			for dirname in thumbs._fields:
 				thumbmap = getattr(thumbs, dirname)
@@ -276,13 +298,13 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 					p = Path(thumb_dir, dirname)
 					os.makedirs(p, exist_ok=True)
 					os.chdir(p)
-					p = Path(p, name)
+					p = Path(p, name + '.png')
 					#broken file
 					if p.exists() and os.path.getsize(p) == 0:
 						p.unlink(missing_ok=True)
 					#will only happen if a new image or the user deletes a existing image,
 					#still opened in w+b mode in case i change my mind
-					retry_count = 5
+					retry_count = 3
 					while not p.exists() and retry_count > 0:
 						with open(p, 'w+b') as f:
 							try:
@@ -293,7 +315,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 								p.unlink(missing_ok=True)
 			os.chdir(o)
 		else:
-			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {norm(nameaux)} -> {norm(thumbnail)}')
+			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {nameaux} -> {norm(thumbnail)}')
 
 def main():
 	typer.run(mainaux)
