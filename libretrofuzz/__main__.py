@@ -229,12 +229,11 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 			return similarity + prefix
 			
 	def nosubtitle_normalizer(t):
-		#Ignore metadata and get the string before it
+		#Ignore metadata (but do not delete) and get the string before it
 		no_meta = re.search(r'(^[^[({]*)', t)
-		if no_meta :
-			subtitle = re.search(r'( - .*)', no_meta.group(1))
-			if subtitle:
-				t = t[0:subtitle.start(1)] + ' ' + t[subtitle.end(1):]
+		subtitle = re.search(r'( - .*)(?:\.png)', no_meta.group(1) if no_meta else t)
+		if subtitle:
+			t = t[0:subtitle.start(1)] + ' ' + t[subtitle.end(1):]
 		return normalizer(t)
 	
 	#preprocess data so it's not redone every loop iteration.
