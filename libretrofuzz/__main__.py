@@ -309,13 +309,11 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or not fail ):
 			print("{:>5}".format(str(i_max)+'% ') + f'Success: {nameaux} -> {norm(thumbnail)}')
-			o = os.getcwd()
 			for dirname in thumbs._fields:
 				thumbmap = getattr(thumbs, dirname)
 				if thumbnail in thumbmap:
 					p = Path(thumb_dir, dirname)
 					os.makedirs(p, exist_ok=True)
-					os.chdir(p)
 					p = Path(p, name + '.png')
 					#broken file
 					if p.exists() and os.path.getsize(p) == 0:
@@ -331,7 +329,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 								print(e)
 								retry_count = retry_count - 1
 								p.unlink(missing_ok=True)
-			os.chdir(o)
 		else:
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {nameaux} -> {norm(thumbnail)}')
 
