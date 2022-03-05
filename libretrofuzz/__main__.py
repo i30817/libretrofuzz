@@ -136,7 +136,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	#in a single game entry.
 	config_source = Path(thumb_dir, 'source')
 	system_source = None
-	if config_source.exist():
+	if config_source.exists():
 		with open(config_source) as f:
 			system_source = f.readline()
 	else:
