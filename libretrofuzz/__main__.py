@@ -130,6 +130,23 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	destination = os.path.basename(playlist)[:-4] #to allow playlists different thumbnail sources than the system name use the playlist name
 	thumb_dir = Path(getThumbnailsPath(cfg),destination) 
 	lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system) #then get the thumbnails from the system name
+	
+	#save a 'source/system' config file to only download files when no thumbnail of the 3 types exists, when they're not being downloaded from the original source.
+	#this is to minimize cases where you download from a remote source system and then try to fill misses with another system and end up with thumbnails from both
+	#in a single game entry.
+	config_source = Path(thumb_dir, 'source')
+	system_source = None
+	if config_source.exist():
+		with open(config_source) as f:
+			system_source = f.readline()
+	else:
+		with open(config_source, 'w') as f:
+			f.writelines([system])
+			system_source = system
+	
+	if system_source != system:
+		print(f'Warning: original system {system_source} != current system {system}, if any thumbnail of the same name in the the set (boxart,snap,title) already exists, download of the missing ones will be skipped. Delete {config_source} to change original system and allow mixed downloads, or delete particular thumbnails files if you do not want to mix')
+	
 	names = []
 	
 	with open(playlist) as f:
@@ -308,11 +325,10 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		(thumbnail, _), i_max = process.extractOne((_,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or not fail ):
-			#when the 'destination' (playlist) is different from the 'system' (source) do not allow downloads
-			#unless all 3 possible thumbnails do not exist, to prevent mixed downloads except on retries when
-			#the system equals the playlist (eg: updates on system/playlist match)
+			#when the original system source is different from the current system source do not allow downloads
+			#unless all 3 possible thumbnails do not exist, to prevent mixed downloads
 			allow = True
-			if destination != system:
+			if system_source != system:
 				def thumbcheck(thumb_path):
 					p = Path(thumb_dir, thumb_path, name+'.png')
 					return not p.exists() or os.path.getsize(p) == 0
@@ -339,8 +355,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 									print(e)
 									retry_count = retry_count - 1
 									p.unlink(missing_ok=True)
-			else:
-				print("{:>5}".format('0% ') + f'Skipped: {name} at least one thumbnail already exists with name when playlist != system, delete manually to download')
 		else:
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {nameaux} -> {norm(thumbnail)}')
 
