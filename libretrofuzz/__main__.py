@@ -308,27 +308,39 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		(thumbnail, _), i_max = process.extractOne((_,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or not fail ):
-			print("{:>5}".format(str(i_max)+'% ') + f'Success: {nameaux} -> {norm(thumbnail)}')
-			for dirname in thumbs._fields:
-				thumbmap = getattr(thumbs, dirname)
-				if thumbnail in thumbmap:
-					p = Path(thumb_dir, dirname)
-					os.makedirs(p, exist_ok=True)
-					p = Path(p, name + '.png')
-					#broken file
-					if p.exists() and os.path.getsize(p) == 0:
-						p.unlink(missing_ok=True)
-					#will only happen if a new image or the user deletes a existing image,
-					#still opened in w+b mode in case i change my mind
-					retry_count = 3
-					while not p.exists() and retry_count > 0:
-						with open(p, 'w+b') as f:
-							try:
-								f.write(urlopen(thumbmap[thumbnail], timeout=30).read())
-							except Exception as e:
-								print(e)
-								retry_count = retry_count - 1
-								p.unlink(missing_ok=True)
+			#when the 'destination' (playlist) is different from the 'system' (source) do not allow downloads
+			#unless all 3 possible thumbnails do not exist, to prevent mixed downloads except on retries when
+			#the system equals the playlist (eg: updates on system/playlist match)
+			allow = True
+			if destination != system:
+				def thumbcheck(thumb_path):
+					p = Path(thumb_dir, thumb_path, name+'.png')
+					return not p.exists() or os.path.getsize(p) == 0
+				allow = all(map(thumbcheck, thumbs._fields)):
+			if allow:
+				print("{:>5}".format(str(i_max)+'% ') + f'Success: {nameaux} -> {norm(thumbnail)}')
+				for dirname in thumbs._fields:
+					thumbmap = getattr(thumbs, dirname)
+					if thumbnail in thumbmap:
+						p = Path(thumb_dir, dirname)
+						os.makedirs(p, exist_ok=True)
+						p = Path(p, name + '.png')
+						#broken file
+						if p.exists() and os.path.getsize(p) == 0:
+							p.unlink(missing_ok=True)
+						#will only happen if a new image or the user deletes a existing image,
+						#still opened in w+b mode in case i change my mind
+						retry_count = 3
+						while not p.exists() and retry_count > 0:
+							with open(p, 'w+b') as f:
+								try:
+									f.write(urlopen(thumbmap[thumbnail], timeout=30).read())
+								except Exception as e:
+									print(e)
+									retry_count = retry_count - 1
+									p.unlink(missing_ok=True)
+			else:
+				print("{:>5}".format('0% ') + f'Skipped: {name} at least one thumbnail already exists with name when playlist != system, delete manually to download')
 		else:
 			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {nameaux} -> {norm(thumbnail)}')
 
