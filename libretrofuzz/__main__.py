@@ -316,7 +316,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 				def thumbcheck(thumb_path):
 					p = Path(thumb_dir, thumb_path, name+'.png')
 					return not p.exists() or os.path.getsize(p) == 0
-				allow = all(map(thumbcheck, thumbs._fields)):
+				allow = all(map(thumbcheck, thumbs._fields))
 			if allow:
 				print("{:>5}".format(str(i_max)+'% ') + f'Success: {nameaux} -> {norm(thumbnail)}')
 				for dirname in thumbs._fields:
