@@ -69,7 +69,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails. If not provided, asked from the user.'),
 		fail: bool = typer.Option(True, help=f'Fail if the similarity score is under {CONFIDENCE}, --no-fail may cause false positives, but can increase matches in sets with nonstandard names.'),
-		merge: bool = typer.Option(True, help='For each game, download missing thumbnail types, --no-merge disables the download if there is at least one and avoids mixing system sources on repeated calls of the program.'),
+		merge: bool = typer.Option(True, help='For each game, download missing thumbnail types, --no-merge disables the download if there is at least one so it avoids mixing system sources on repeated calls of the program.'),
 		meta: bool = typer.Option(True, help='Match name () delimited metadata, --no-meta may cause false positives, but can increase matches in sets with nonstandard names.'),
 		dump: bool = typer.Option(False, help='Match name [] delimited metadata, --dump may cause false positives, but can increase matches for hacks, if the hack has thumbnails.'),
 		subtitle: bool = typer.Option(True, help='Match name before the last hyphen, --no-subtitle may cause false positives, but can increase matches in sets with incomplete names.'),
