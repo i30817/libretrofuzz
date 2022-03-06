@@ -68,13 +68,13 @@ def getThumbnailsPath(cfg: Path):
 def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not provided, asked from the user.'),
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails. If not provided, asked from the user.'),
-		fail: bool = typer.Option(True, help=f'Fail if the similarity score is under {CONFIDENCE}, --no-fail may cause false positives, but can increase matches in sets with nonstandard names.'),
-		merge: bool = typer.Option(True, help='For each game, download missing thumbnail types, --no-merge disables the download if there is at least one so it avoids mixing system sources on repeated calls of the program.'),
-		meta: bool = typer.Option(True, help='Match name () delimited metadata, --no-meta may cause false positives, but can increase matches in sets with nonstandard names.'),
-		dump: bool = typer.Option(False, help='Match name [] delimited metadata, --dump may cause false positives, but can increase matches for hacks, if the hack has thumbnails.'),
-		subtitle: bool = typer.Option(True, help='Match name before the last hyphen, --no-subtitle may cause false positives, but can increase matches in sets with incomplete names.'),
-		rmspaces: bool = typer.Option(False, help='Instead of uniquifying spaces in normalization, remove them, --rmspaces may cause false negatives, but some sets do not have spaces in the title. Best used with --no-dump --no-meta --no-subtitle.'),
-		before: Optional[str] = typer.Option(None, help='Use only the part of the name before TEXT to match. TEXT may not be inside of a parenthesis of any kind. This operates only on the playlist names, implies --nodump and --no-meta and may cause false positives but some sets do not have traditional separators.')
+		nomerge: bool = typer.Option(False, '--no-merge', help='--no-merge disables thumbnails download if there is at least one thumbnail type in cache for a name so it avoids mixing thumbnail sources on repeated calls.'),
+		nofail: bool = typer.Option(False, '--no-fail', help=f'--no-fail ignores the similarity score and may cause more false positives, but can increase matches in sets with nonstandard names.'),
+		nometa: bool = typer.Option(False, '--no-meta', help='--no-meta ignores () delimited metadata and may cause false positives, but can increase matches in sets with nonstandard names.'),
+		hack: bool = typer.Option(False, '--hack', help='--hack matches [] delimited metadata and may cause false positives, but can increase matches for hacks, if the hack has thumbnails.'),
+		nosubtitle: bool = typer.Option(False, '--no-subtitle', help='--no-subtitle ignores the name after the last hyphen or colon and before metadata and may cause false positives, but can increase matches in sets with incomplete names. Note that colon can only occur in local unix names, not on libretro names.'),
+		rmspaces: bool = typer.Option(False, '--rmspaces', help='Instead of uniquifying spaces in normalization, remove them, --rmspaces may cause false negatives, but some sets do not have spaces in the title. Best used with --no-meta --no-subtitle.'),
+		before: Optional[str] = typer.Option(None, help='Use only the part of the name before TEXT to match. TEXT may not be inside of a parenthesis of any kind. This operates only on the playlist names, implies --no-meta and may cause false positives but some sets do not have traditional separators.')
 	):
 	"""
 	libretrofuzz downloads covers from the libretro thumbnails server and adapts their names to current playlist names.
@@ -160,10 +160,10 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	
 	thumbs = thumbs._make( args )
 	
-	#before implies that the names of the playlists may be cut, so the dump and meta matching must be disabled
+	#before implies that the names of the playlists may be cut, so the hack and meta matching must be disabled
 	if before:
-		dump = False
-		meta = False
+		hack = False
+		nometa = True
 	
 	def removeparenthesis(s, open_p='(', close_p=')'):
 		nb_rep = 1
@@ -178,9 +178,9 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		return our_str
 	
 	def normalizer(t):
-		if not meta:
+		if nometa:
 			t = removeparenthesis(t,'(',')')
-		if not dump:
+		if not hack:
 			t = removeparenthesis(t,'[',']')
 		t = t.replace('VIII', '8')
 		t = t.replace('VII',  '7')
@@ -268,7 +268,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	#preprocess data so it's not redone every loop iteration.
 	
 	#normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
-	norm = normalizer if subtitle else nosubtitle_normalizer
+	norm = nosubtitle_normalizer if nosubtitle else normalizer
 	#we choose the highest similarity of all 3 directories, since no mixed matches are allowed
 	remote_names = set()
 	remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Snaps.keys(), thumbs.Named_Titles.keys())
@@ -297,7 +297,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		#Note that this does mean that if the servername has 'Name_ subtitle.png' and not 'Name - subtitle.png' there is less chance of a match,
 		#but that is rarer on the server than the opposite.
 		#not to mention that this only applies if the user signals 'no-subtitle', which presumably means they tried without it - which does match.
-		if not subtitle:
+		if nosubtitle:
 			nameaux = nosubtitle(nameaux, ': ')
 		
 		#only the local names should have forbidden characters
@@ -309,10 +309,10 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		#operate on tuples to have a inbuilt cache (to speed up by not applying normalization every iteration)
 		(thumbnail, _), i_max = process.extractOne((_,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
-		if thumbnail != '' and ( i_max >= CONFIDENCE or not fail ):
+		if thumbnail != '' and ( i_max >= CONFIDENCE or nofail ):
 			#if merge is turned off, only download if all thumbnail types are missing
 			allow = True
-			if not merge:
+			if nomerge:
 				def thumbcheck(thumb_path):
 					p = Path(thumb_dir, thumb_path, name+'.png')
 					return not p.exists() or os.path.getsize(p) == 0

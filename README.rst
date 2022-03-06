@@ -36,44 +36,40 @@ Arguments:
   [default: ~/.config/retroarch/retroarch.cfg]
 
 Options:
-  --playlist TEXT             Playlist name to download thumbnails for. If not
-                              provided, asked from the user.
-  --system TEXT               Directory in the server to download thumbnails
-                              from. If not provided, asked from the user.
-  --fail, --no-fail           Fail if the similarity score is under 100, --no-
-                              fail may cause false positives, but can increase
-                              matches in sets with nonstandard names.
-                              [default: fail]
-  --merge, --no-merge         For each game, download missing thumbnail types,
-                              --no-merge disables the download if there is at
-                              least one so it avoids mixing system sources on
-                              repeated calls of the program.  [default: merge]
-  --meta, --no-meta           Match name () delimited metadata, --no-meta may
-                              cause false positives, but can increase matches
-                              in sets with nonstandard names.  [default: meta]
-  --dump, --no-dump           Match name [] delimited metadata, --dump may
-                              cause false positives, but can increase matches
-                              for hacks, if the hack has thumbnails.
-                              [default: no-dump]
-  --subtitle, --no-subtitle   Match name before the last hyphen, --no-subtitle
-                              may cause false positives, but can increase
-                              matches in sets with incomplete names.
-                              [default: subtitle]
-  --rmspaces, --no-rmspaces   Instead of uniquifying spaces in normalization,
-                              remove them, --rmspaces may cause false
-                              negatives, but some sets do not have spaces in
-                              the title. Best used with --no-dump --no-meta
-                              --no-subtitle.  [default: no-rmspaces]
-  --before TEXT               Use only the part of the name before TEXT to
-                              match. TEXT may not be inside of a parenthesis
-                              of any kind. This operates only on the playlist
-                              names, implies --nodump and --no-meta and may
-                              cause false positives but some sets do not have
-                              traditional separators.
-  --install-completion        Install completion for the current shell.
-  --show-completion           Show completion for the current shell, to copy
-                              it or customize the installation.
-  --help                      Show this message and exit.
+  --playlist TEXT       Playlist name to download thumbnails for. If not
+                        provided, asked from the user.
+  --system TEXT         Directory in the server to download thumbnails. If not
+                        provided, asked from the user.
+  --no-merge            --no-merge disables thumbnails download if there is at
+                        least one thumbnail type in cache for a name so it
+                        avoids mixing thumbnail sources on repeated calls.
+  --no-fail             --no-fail ignores the similarity score and may cause
+                        more false positives, but can increase matches in sets
+                        with nonstandard names.
+  --no-meta             --no-meta ignores () delimited metadata and may cause
+                        false positives, but can increase matches in sets with
+                        nonstandard names.
+  --hack                --hack matches [] delimited metadata and may cause
+                        false positives, but can increase matches for hacks,
+                        if the hack has thumbnails.
+  --no-subtitle         --no-subtitle ignores the name after the last hyphen
+                        or colon and before metadata and may cause false
+                        positives, but can increase matches in sets with
+                        incomplete names. Note that colon can only occur in
+                        local unix names, not on libretro names.
+  --rmspaces            Instead of uniquifying spaces in normalization, remove
+                        them, --rmspaces may cause false negatives, but some
+                        sets do not have spaces in the title. Best used with
+                        --no-meta --no-subtitle.
+  --before TEXT         Use only the part of the name before TEXT to match.
+                        TEXT may not be inside of a parenthesis of any kind.
+                        This operates only on the playlist names, implies
+                        --no-meta and may cause false positives but some sets
+                        do not have traditional separators.
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell, to copy it or
+                        customize the installation.
+  --help                Show this message and exit.
 
 
 To install the program, type on the cmd line
