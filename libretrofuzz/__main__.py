@@ -135,14 +135,13 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	#this is to minimize cases where you download from a remote source system and then try to fill misses with another system and end up with thumbnails from both
 	#in a single game entry.
 	config_source = Path(thumb_dir, 'source')
-	system_source = None
+	system_source = system
 	if config_source.exists():
 		with open(config_source) as f:
 			system_source = f.readline()
 	else:
 		with open(config_source, 'w') as f:
 			f.writelines([system])
-			system_source = system
 	
 	if system_source != system:
 		print(f'Warning: original system {system_source} != current system {system}, if any thumbnail of the same name in the the set (boxart,snap,title) already exists, download of the missing ones will be skipped. Delete {config_source} to change original system and allow mixed downloads, or delete particular thumbnails files if you do not want to mix')
