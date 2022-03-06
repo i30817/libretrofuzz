@@ -69,6 +69,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails. If not provided, asked from the user.'),
 		fail: bool = typer.Option(True, help=f'Fail if the similarity score is under {CONFIDENCE}, --no-fail may cause false positives, but can increase matches in sets with nonstandard names.'),
+		merge: bool = typer.Option(True, help='For each game, download missing thumbnail types, --no-merge disables the download if there is at least one and avoids mixing system sources on repeated calls of the program.'),
 		meta: bool = typer.Option(True, help='Match name () delimited metadata, --no-meta may cause false positives, but can increase matches in sets with nonstandard names.'),
 		dump: bool = typer.Option(False, help='Match name [] delimited metadata, --dump may cause false positives, but can increase matches for hacks, if the hack has thumbnails.'),
 		subtitle: bool = typer.Option(True, help='Match name before the last hyphen, --no-subtitle may cause false positives, but can increase matches in sets with incomplete names.'),
@@ -130,21 +131,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	destination = os.path.basename(playlist)[:-4] #to allow playlists different thumbnail sources than the system name use the playlist name
 	thumb_dir = Path(getThumbnailsPath(cfg),destination) 
 	lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system) #then get the thumbnails from the system name
-	
-	#save a 'source/system' config file to only download files when no thumbnail of the 3 types exists, when they're not being downloaded from the original source.
-	#this is to minimize cases where you download from a remote source system and then try to fill misses with another system and end up with thumbnails from both
-	#in a single game entry.
-	config_source = Path(thumb_dir, 'source')
-	system_source = system
-	if config_source.exists():
-		with open(config_source) as f:
-			system_source = f.readline()
-	else:
-		with open(config_source, 'w') as f:
-			f.writelines([system])
-	
-	if system_source != system:
-		print(f'Warning: original system {system_source} != current system {system}, if any thumbnail of the same name in the the set (boxart,snap,title) already exists, download of the missing ones will be skipped. Delete {config_source} to change original system and allow mixed downloads, or delete particular thumbnails files if you do not want to mix')
 	
 	names = []
 	
@@ -324,10 +310,9 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		(thumbnail, _), i_max = process.extractOne((_,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or not fail ):
-			#when the original system source is different from the current system source do not allow downloads
-			#unless all 3 possible thumbnails do not exist, to prevent mixed downloads
+			#if merge is turned off, only download if all thumbnail types are missing
 			allow = True
-			if system_source != system:
+			if not merge:
 				def thumbcheck(thumb_path):
 					p = Path(thumb_dir, thumb_path, name+'.png')
 					return not p.exists() or os.path.getsize(p) == 0

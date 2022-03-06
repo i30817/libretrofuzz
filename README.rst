@@ -44,6 +44,10 @@ Options:
                               fail may cause false positives, but can increase
                               matches in sets with nonstandard names.
                               [default: fail]
+  --merge, --no-merge         For each game, download missing thumbnail types,
+                              --no-merge disables the download if there is at
+                              least one and avoids mixing system sources on
+                              repeated calls of the program.  [default: merge]
   --meta, --no-meta           Match name () delimited metadata, --no-meta may
                               cause false positives, but can increase matches
                               in sets with nonstandard names.  [default: meta]
