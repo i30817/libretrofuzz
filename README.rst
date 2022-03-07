@@ -14,7 +14,7 @@ Example:
 
 Note that the system name you download from doesn't have to be the same as the playlist name.
 
-If the thumbnail server contains games from multiple releases for the system (like ``ScummVM``), be careful using this trick since it's easy to end up with 'slightly wrong' covers.
+If the thumbnail server contains games from multiple releases for the system (like ``ScummVM``), be careful using extra options since it's easy to end up with 'slightly wrong' covers.
 
 Example:
  ``libretrofuzz --no-meta``
