@@ -48,7 +48,7 @@ Options:
   --filters TEXT        Filename glob filters for game labels in the playlist,
                         you can add this option more than once. This is the
                         only way to force a refresh from inside the program if
-                        the thumbnails already exists in the cache.
+                        the thumbnails already exist in the cache.
   --no-merge            Disables thumbnails download if there is at least one
                         thumbnail type in cache for a label to it avoid mixing
                         thumbnail sources on repeated calls. No effect if

@@ -68,7 +68,7 @@ def getThumbnailsPath(cfg: Path):
 def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not provided, asked from the user.'),
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails. If not provided, asked from the user.'),
-		filters: Optional[List[str]] = typer.Option(None, help='Filename glob filters for game labels in the playlist, you can add this option more than once. This is the only way to force a refresh from inside the program if the thumbnails already exists in the cache.'),
+		filters: Optional[List[str]] = typer.Option(None, help='Filename glob filters for game labels in the playlist, you can add this option more than once. This is the only way to force a refresh from inside the program if the thumbnails already exist in the cache.'),
 		nomerge: bool = typer.Option(False, '--no-merge', help='Disables thumbnails download if there is at least one thumbnail type in cache for a label to it avoid mixing thumbnail sources on repeated calls. No effect if called with filters since filters delete every match before download.'),
 		nofail: bool = typer.Option(False, '--no-fail', help=f'Ignores the similarity score and may cause more false positives, but can increase matches in playlists with nonstandard labels.'),
 		nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives, but can increase matches in playlists with nonstandard labels. Forced if called with --before.'),
