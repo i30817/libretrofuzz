@@ -24,10 +24,7 @@ Example:
 
 Because of this the default is to count everything except square brackets delimited metadata as part of the match, and the default pre-selected system name to be the same as the playlist name, which is safest.
 
-False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting a sequel or prequel as the 'most similar', or from the server not having a different cover for releases and getting the 'wrong' one.
-
-For instance if libretro doesn't have a Japanese cover for a game you have with ``(Japan)`` in the name, you're likely to get a ``(USA)`` cover even in the same system because there is no better match.
-
+False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can. Common false positives from this are sequels or prequels, or from the server not having a different cover for releases and getting the 'wrong' one, most often regions.
 
 **Usage: fuzzythumbnails [OPTIONS] [CFG]**
 
