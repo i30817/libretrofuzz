@@ -29,7 +29,7 @@ False positives will then mostly be from the thumbnail server not having a singl
 Example:
   ``libretrofuzz --filters '[Ii]shar*' --filters '[Zz]ool*'``
   
-  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is named slightly different (for instance, because it's a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload the thumbnails with a filter, in this example, the Ishar and Zool series.
+  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is named slightly different (for instance, because it's a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload just the affected thumbnails with a filter, in this example, the Ishar and Zool series.
 
 
 **Usage: fuzzythumbnails [OPTIONS] [CFG]**
