@@ -26,7 +26,7 @@ Because of this the default is to count everything except square brackets delimi
 
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting a sequel or prequel as the 'most similar', or from the server not having a different cover for releases and getting the 'wrong' one.
 
-A common one is if libretro doesn't have japanese covers and the set has names with ``(Japan)`` appended, you're likely to get a ``(USA)`` cover even in the same system.
+For instance if libretro doesn't have a Japanese cover for a game you have with ``(Japan)`` in the name, you're likely to get a ``(USA)`` cover even in the same system because there is no better match.
 
 
 **Usage: fuzzythumbnails [OPTIONS] [CFG]**
