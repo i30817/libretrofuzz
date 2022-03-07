@@ -24,7 +24,7 @@ Example:
 
 Because of this the default is to count everything except square brackets delimited metadata as part of the match, and the default pre-selected system name to be the same as the playlist name, which is safest.
 
-False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can. Common false positives from this are sequels or prequels, or from the server not having a different cover for releases and getting the 'wrong' one, most often regions.
+False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
 
 **Usage: fuzzythumbnails [OPTIONS] [CFG]**
 
