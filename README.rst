@@ -22,7 +22,7 @@ Example:
  After downloading ``ScummVM`` thumbnails (and not before, to minimize false positives), we'd like to try to pickup a few covers from ``DOS`` thumbnails.
  Choose the ScummVM playlist and DOS system name, and covers would be downloaded with risk of false positives: CD vs floppy covers, USA vs Japan covers, or another platform vs DOS.
 
-Because of this the default is to count everything except [] delimited metadata as part of the match, and the default pre-selected system name to be the same as the playlist name, which is safest.
+Because of this the default is to count everything except square brackets delimited metadata as part of the match, and the default pre-selected system name to be the same as the playlist name, which is safest.
 
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting a sequel or prequel as the 'most similar', or from the server not having a different cover for releases and getting the 'wrong' one.
 
