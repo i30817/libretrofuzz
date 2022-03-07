@@ -28,7 +28,7 @@ Because of this increased risk of false positives with options, the default is t
 
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
 
-The 'best' way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is named slightly different (for instance, because it's a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload the thumbnails.
+The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is named slightly different (for instance, because it's a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload the thumbnails.
 
 Example:
   ``libretrofuzz --filters 'LABEL1_GLOB' --filters 'LABEL2_GLOB'``
@@ -48,11 +48,12 @@ Options:
   --filters TEXT        Filename glob filters for game labels in the playlist,
                         you can add this option more than once. This is the
                         only way to force a refresh from inside the program if
-                        the thumbnail already exists in the cache. Disables
-                        --no-merge.
+                        the thumbnails already exists in the cache.
   --no-merge            Disables thumbnails download if there is at least one
                         thumbnail type in cache for a label to it avoid mixing
-                        thumbnail sources on repeated calls.
+                        thumbnail sources on repeated calls. No effect if
+                        called with filters since filters delete every match
+                        before download.
   --no-fail             Ignores the similarity score and may cause more false
                         positives, but can increase matches in playlists with
                         nonstandard labels.
@@ -73,10 +74,9 @@ Options:
   --rmspaces            Instead of uniquifying spaces in normalization, remove
                         them, some playlists do not have spaces in the labels.
   --before TEXT         Use only the part of the label before TEXT to match.
-                        TEXT may not be inside of a parenthesis of any kind.
-                        Implies --no-meta, disables --hack, and may cause
-                        false positives but some labels do not have
-                        traditional separators.
+                        TEXT may not be inside of a parenthesis of any kind,
+                        may cause false positives but some labels do not have
+                        traditional separators. Forces metadata to be ignored.
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or
                         customize the installation.

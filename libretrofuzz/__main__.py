@@ -68,14 +68,14 @@ def getThumbnailsPath(cfg: Path):
 def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not provided, asked from the user.'),
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails. If not provided, asked from the user.'),
-		filters: Optional[List[str]] = typer.Option(None, help='Filename glob filters for game labels in the playlist, you can add this option more than once. This is the only way to force a refresh from inside the program if the thumbnail already exists in the cache. Disables --no-merge.'),
-		nomerge: bool = typer.Option(False, '--no-merge', help='Disables thumbnails download if there is at least one thumbnail type in cache for a label to it avoid mixing thumbnail sources on repeated calls.'),
+		filters: Optional[List[str]] = typer.Option(None, help='Filename glob filters for game labels in the playlist, you can add this option more than once. This is the only way to force a refresh from inside the program if the thumbnails already exists in the cache.'),
+		nomerge: bool = typer.Option(False, '--no-merge', help='Disables thumbnails download if there is at least one thumbnail type in cache for a label to it avoid mixing thumbnail sources on repeated calls. No effect if called with filters since filters delete every match before download.'),
 		nofail: bool = typer.Option(False, '--no-fail', help=f'Ignores the similarity score and may cause more false positives, but can increase matches in playlists with nonstandard labels.'),
-		nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives, but can increase matches in playlists with nonstandard labels.'),
-		hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, but can increase matches for hack labels, if the hack has thumbnails.'),
+		nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives, but can increase matches in playlists with nonstandard labels. Forced if called with --before.'),
+		hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, but can increase matches for hack labels, if the hack has thumbnails. No effect if called with --before.'),
 		nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores the label text after the last \'-\' or \':\' and before metadata and may cause false positives, but can increase matches in playlists with incomplete names. Note that \':\' can only occur in local unix names, not on libretro names, so that is to match a long local unix name to a short name on the server only, and in that case you should first try without this option, since long names are more common on the server.'),
 		rmspaces: bool = typer.Option(False, '--rmspaces', help='Instead of uniquifying spaces in normalization, remove them, some playlists do not have spaces in the labels.'),
-		before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of a parenthesis of any kind. Implies --no-meta, disables --hack, and may cause false positives but some labels do not have traditional separators.')
+		before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of a parenthesis of any kind, may cause false positives but some labels do not have traditional separators.')
 	):
 	"""
 	libretrofuzz downloads covers from the libretro thumbnails server and adapts their names to current playlist names.
@@ -165,10 +165,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 	if before:
 		hack = False
 		nometa = True
-	#filters imply that no-merge is off
-	if filters:
-		nomerge = False
-	
+
 	def removeparenthesis(s, open_p='(', close_p=')'):
 		nb_rep = 1
 		while (nb_rep):
@@ -318,9 +315,9 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		(thumbnail, _), i_max = process.extractOne((_,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or nofail ):
-			#if merge is turned off, only download if all thumbnail types are missing
+			#if no filtering and merge is turned off, only download if all thumbnail types are missing
 			allow = True
-			if nomerge:
+			if not filters and nomerge:
 				def thumbcheck(thumb_path):
 					p = Path(thumb_dir, thumb_path, name+'.png')
 					return not p.exists() or os.path.getsize(p) == 0
@@ -333,11 +330,8 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 						p = Path(thumb_dir, dirname)
 						os.makedirs(p, exist_ok=True)
 						p = Path(p, name + '.png')
-						#broken file
 						if filters or (p.exists() and os.path.getsize(p) == 0):
 							p.unlink(missing_ok=True)
-						#will only happen if a new image or the user deletes a existing image,
-						#still opened in w+b mode in case i change my mind
 						retry_count = 3
 						while not p.exists() and retry_count > 0:
 							with open(p, 'w+b') as f:
