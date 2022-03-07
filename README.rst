@@ -47,11 +47,11 @@ Options:
                         you can add this option more than once. This is the
                         only way to force a refresh from inside the program if
                         the thumbnails already exist in the cache.
-  --no-merge            Disables thumbnails download if there is at least one
-                        thumbnail type in cache for a label to it avoid mixing
-                        thumbnail sources on repeated calls. No effect if
-                        called with filter since filters delete every match
-                        before download.
+  --no-merge            Disables missing thumbnails download for a label if
+                        there is at least one in cache to avoid mixing
+                        thumbnails from different server directories on
+                        repeated calls. No effect if called with filter since
+                        filters delete every match before download.
   --no-fail             Ignores the similarity score, and always downloads
                         even if probably wrong. Best used with a filter.
   --no-meta             Ignores () delimited metadata and may cause false

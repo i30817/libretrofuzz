@@ -69,7 +69,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
 		system: str = typer.Option(None, help='Directory in the server to download thumbnails. If not provided, asked from the user.'),
 		filters: Optional[List[str]] = typer.Option(None, '--filter', help='Filename glob filter for game labels in the playlist, you can add this option more than once. This is the only way to force a refresh from inside the program if the thumbnails already exist in the cache.'),
-		nomerge: bool = typer.Option(False, '--no-merge', help='Disables thumbnails download if there is at least one thumbnail type in cache for a label to it avoid mixing thumbnail sources on repeated calls. No effect if called with filter since filters delete every match before download.'),
+		nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with filter since filters delete every match before download.'),
 		nofail: bool = typer.Option(False, '--no-fail', help='Ignores the similarity score, and always downloads even if probably wrong. Best used with a filter.'),
 		nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
 		hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
