@@ -27,7 +27,7 @@ Because of this increased risk of false positives with options, the default is t
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
 
 Example:
-  ``libretrofuzz --filters '[Ii]shar*' --filters '[Zz]ool*'``
+  ``libretrofuzz --filter '[Ii]shar*' --filter '[Zz]ool*'``
   
   The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is named slightly different (for instance, because it's a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload just the affected thumbnails with a filter, in this example, the Ishar and Zool series.
 
@@ -43,14 +43,14 @@ Options:
                         provided, asked from the user.
   --system TEXT         Directory in the server to download thumbnails. If not
                         provided, asked from the user.
-  --filters TEXT        Filename glob filters for game labels in the playlist,
+  --filter TEXT         Filename glob filter for game labels in the playlist,
                         you can add this option more than once. This is the
                         only way to force a refresh from inside the program if
                         the thumbnails already exist in the cache.
   --no-merge            Disables thumbnails download if there is at least one
                         thumbnail type in cache for a label to it avoid mixing
                         thumbnail sources on repeated calls. No effect if
-                        called with filters since filters delete every match
+                        called with filter since filters delete every match
                         before download.
   --no-fail             Ignores the similarity score, and always downloads
                         even if probably wrong. Best used with a filter.
