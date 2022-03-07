@@ -72,7 +72,7 @@ Options:
                         that case you should first try without this option,
                         since long names are more common on the server.
   --rmspaces            Instead of uniquifying spaces in normalization, remove
-                        them, some playlists do not have spaces in the labels.
+                        them, for playlists with no spaces in the labels.
   --before TEXT         Use only the part of the label before TEXT to match.
                         TEXT may not be inside of a parenthesis of any kind,
                         may cause false positives but some labels do not have

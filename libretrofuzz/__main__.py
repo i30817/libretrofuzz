@@ -74,7 +74,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
 		nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives, but can increase matches in playlists with nonstandard labels. Forced if called with --before.'),
 		hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, but can increase matches for hack labels, if the hack has thumbnails. No effect if called with --before.'),
 		nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores the label text after the last \'-\' or \':\' and before metadata and may cause false positives, but can increase matches in playlists with incomplete names. Note that \':\' can only occur in local unix names, not on libretro names, so that is to match a long local unix name to a short name on the server only, and in that case you should first try without this option, since long names are more common on the server.'),
-		rmspaces: bool = typer.Option(False, '--rmspaces', help='Instead of uniquifying spaces in normalization, remove them, some playlists do not have spaces in the labels.'),
+		rmspaces: bool = typer.Option(False, '--rmspaces', help='Instead of uniquifying spaces in normalization, remove them, for playlists with no spaces in the labels.'),
 		before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of a parenthesis of any kind, may cause false positives but some labels do not have traditional separators.')
 	):
 	"""
