@@ -24,8 +24,6 @@ Example:
 
 Because of this increased risk of false positives with options, the default is to count everything except hack metadata as part of the match, and the default pre-selected system name to be the same as the playlist name, which is safest.
 
---no-merge is not default, because although it prevents multiple calls of libretrofuzz causing retroarch to display thumbnails of different server system sources for a single game (if, for example, it has the boxart on a system and title on another for each best match), it also prevents newly added thumbnails on the same source in the server from downloading.
-
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
 
 The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is named slightly different (for instance, because it's a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload the thumbnails.
