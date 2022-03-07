@@ -287,7 +287,7 @@ pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git
 				return 200
 			return similarity + prefix
 	
-	def nosubtitle(t,subtitle_marker=' - '):
+	def nosubtitle_aux(t,subtitle_marker=' - '):
 		#Ignore metadata (but do not delete) and get the string before it
 		no_meta = re.search(r'(^[^[({]*)', t)
 		#last subtitle marker and everything there until the end (last because i noticed that 'subsubtitles' exist, 
@@ -298,7 +298,7 @@ pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git
 		return t
 	
 	def nosubtitle_normalizer(t):
-		return normalizer(nosubtitle(t))
+		return normalizer(nosubtitle_aux(t))
 	
 	#preprocess data so it's not redone every loop iteration.
 	
@@ -337,7 +337,7 @@ pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git
 		#but that is rarer on the server than the opposite.
 		#not to mention that this only applies if the user signals 'no-subtitle', which presumably means they tried without it - which does match.
 		if nosubtitle:
-			nameaux = nosubtitle(nameaux, ': ')
+			nameaux = nosubtitle_aux(nameaux, ': ')
 		
 		#only the local names should have forbidden characters
 		name = re.sub(forbidden, '_', name )
