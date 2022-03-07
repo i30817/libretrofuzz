@@ -52,8 +52,7 @@ Options:
                         thumbnails from different server directories on
                         repeated calls. No effect if called with filter since
                         filters delete every match before download.
-  --no-fail             Ignores the similarity score, and always downloads
-                        even if probably wrong. Best used with a filter.
+  --no-fail             Always download for any score. Best used with filter.
   --no-meta             Ignores () delimited metadata and may cause false
                         positives. Forced with --before.
   --hack                Matches [] delimited metadata and may cause false
