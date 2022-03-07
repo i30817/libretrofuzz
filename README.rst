@@ -54,23 +54,20 @@ Options:
                         thumbnail sources on repeated calls. No effect if
                         called with filters since filters delete every match
                         before download.
-  --no-fail             Ignores the similarity score and may cause more false
-                        positives, but can increase matches in playlists with
-                        nonstandard labels.
+  --no-fail             Ignores the similarity score, and always downloads
+                        even if probably wrong. Best used with a filter.
   --no-meta             Ignores () delimited metadata and may cause false
-                        positives, but can increase matches in playlists with
-                        nonstandard labels.
+                        positives. Forced with --before.
   --hack                Matches [] delimited metadata and may cause false
-                        positives, but can increase matches for hack labels,
-                        if the hack has thumbnails.
-  --no-subtitle         Ignores the label text after the last '-' or ':' and
-                        before metadata and may cause false positives, but can
-                        increase matches in playlists with incomplete names.
-                        Note that ':' can only occur in local unix names, not
-                        on libretro names, so that is to match a long local
-                        unix name to a short name on the server only, and in
-                        that case you should first try without this option,
-                        since long names are more common on the server.
+                        positives, Best used if the hack has thumbnails.
+                        Ignored with --before.
+  --no-subtitle         Ignores subtitles, ' - ' or ': ' style. Best used if
+                        the playlist labels have no subtitles. Note that ':'
+                        can only occur in local labels, not on libretro names,
+                        so that only matches a long local label to a short
+                        name on the server, and in that case you should first
+                        try without this option, since long names are more
+                        common on the server.
   --rmspaces            Instead of uniquifying spaces in normalization, remove
                         them, for playlists with no spaces in the labels.
   --before TEXT         Use only the part of the label before TEXT to match.
@@ -81,6 +78,7 @@ Options:
   --show-completion     Show completion for the current shell, to copy it or
                         customize the installation.
   --help                Show this message and exit.
+
 
 
 To install the program, type on the cmd line
