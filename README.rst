@@ -32,7 +32,7 @@ Example:
   The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is slightly different (for instance, because it is a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload just the affected thumbnails with a filter, in this example, the Ishar series in the WHDLoad playlist.
 
 
-**Usage: fuzzythumbnails [OPTIONS] [CFG]**
+**Usage: libretrofuzz [OPTIONS] [CFG]**
 
 Arguments:
   [CFG]  Path to the retroarch cfg file. If not provided, asked from the user.
