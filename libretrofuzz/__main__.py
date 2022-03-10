@@ -21,6 +21,7 @@ from pick import pick
 import typer
 import json
 import os
+import sys
 import io
 import re
 import fnmatch
@@ -40,7 +41,16 @@ from urllib.request import unquote, quote
 
 CONFIDENCE = 100
 
-CONFIG = Path(Path.home(), '.config', 'retroarch', 'retroarch.cfg')
+if sys.platform == 'win32': #don't be fooled, this is for 64 bits too
+	CONFIG = Path('C:\RetroArch-Win64\retroarch.cfg') #64bits default installer path
+	if not CONFIG.exists():
+		CONFIG = Path('C:\RetroArch\retroarch.cfg') #fallback to the 32 bits default installer path
+elif sys.platform == 'darwin':
+	CONFIG = Path(Path.home(), 'Documents', 'Retroarch', 'retroarch.cfg') #what I _think_ is the default on macosx
+elif sys.platform.startswith('linux'):
+	CONFIG = Path(Path.home(), '.config', 'retroarch', 'retroarch.cfg') #default installer path in unix
+else:
+	CONFIG = None #give up
 
 #00-1f are ascii control codes, rest is 'normal' illegal windows filename chars according to powershell + &
 forbidden	=	r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008' + \
@@ -117,7 +127,7 @@ To update this program with pip installed, type:
 
 pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git
 	"""
-	if not cfg.exists() or not cfg.is_file():
+	if not cfg or not cfg.exists() or not cfg.is_file():
 		typer.echo(f'Invalid Retroarch cfg file: {cfg}')
 		raise typer.Abort()
 	
