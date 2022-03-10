@@ -346,7 +346,7 @@ pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git
 		nameaux = norm(nameaux)
 
 		#operate on tuples to have a inbuilt cache (to speed up by not applying normalization every iteration)
-		(thumbnail, _), i_max = process.extractOne((_,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
+		(thumbnail, _), i_max = process.extractOne((None,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or nofail ):
 			#if no filtering and merge is turned off, only download if all thumbnail types are missing
