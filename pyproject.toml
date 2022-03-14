@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "libretrofuzz"
+name = "libretro-fuzz"
 version = "1.5.0"
 description = "Fuzzy Retroarch thumbnail downloader"
 authors = ["i30817 <i30817@gmail.com>"]
@@ -19,7 +19,7 @@ thefuzz = [
 
 
 [tool.poetry.scripts]
-libretro-fuzz = 'libretrofuzz.__main__:main'
+libretro-fuzz = 'libretro_fuzz.__main__:main'
 
 [tool.poetry.urls]
 "homepage" = 'https://github.com/i30817/libretrofuzz'
