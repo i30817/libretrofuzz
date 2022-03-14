@@ -79,12 +79,13 @@ Options:
 
 
 To install the program, type on the cmd line
- ``pip3 install git+https://github.com/i30817/libretrofuzz.git``
++---------------------+-------------------------------------------------------------------------------------+
+| Linux               | ``pip3 install https://github.com/i30817/libretrofuzz/archive/master.zip``          |
++---------------------+-------------------------------------------------------------------------------------+
+| Windows             | ``python -m pip install https://github.com/i30817/libretrofuzz/archive/master.zip`` |
++---------------------+-------------------------------------------------------------------------------------+
+| Run in Windows      | ``python -m libretro-fuzz...``                                                      |
++---------------------+-------------------------------------------------------------------------------------+
  
  In windows, you'll want to check the option to “Add Python to PATH” when installing python, to be able to execute the script from any path of the cmd line.
 
-To upgrade the program
- ``pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git``
-
-To remove
- ``pip3 uninstall libretrofuzz``

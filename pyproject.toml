@@ -9,10 +9,14 @@ repository = "https://github.com/i30817/libretrofuzz"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-thefuzz = {extras = ["speedup"], version = "^0.19.0"}
 beautifulsoup4 = "^4.10.0"
 typer = {extras = ["all"], version = "^0.4.0"}
 pick = "^1.2.0"
+thefuzz = [
+    {version = "^0.19.0", markers = "sys_platform == 'win32'" },
+    {extras = ["speedup"], version = "^0.19.0", markers = "sys_platform == 'linux2'"}
+]
+
 
 [tool.poetry.scripts]
 libretro-fuzz = 'libretrofuzz.__main__:main'
