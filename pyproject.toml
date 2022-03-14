@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "libretro-fuzz"
+name = "libretrofuzz"
 version = "1.5.0"
 description = "Fuzzy Retroarch thumbnail downloader"
 authors = ["i30817 <i30817@gmail.com>"]
