@@ -88,5 +88,4 @@ To install the program, type on the cmd line
 | Run in Windows      | ``python -m libretro-fuzz...``                                                      |
 +---------------------+-------------------------------------------------------------------------------------+
  
- In windows, you'll want to check the option to “Add Python to PATH” when installing python, to be able to execute the script from any path of the cmd line.
-
+In windows, you'll want to check the option to “Add Python to PATH” when installing python, to be able to execute the script from any path of the cmd line.
