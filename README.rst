@@ -80,6 +80,8 @@ Options:
 
 To install the program, type on the cmd line
  ``pip3 install git+https://github.com/i30817/libretrofuzz.git``
+ 
+  In windows, you'll want to check the option to “Add Python to PATH” when installing python, to be able to execute the script from any path of the cmd line.
 
 To upgrade the program
  ``pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git``
