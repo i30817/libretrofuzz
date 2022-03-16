@@ -42,9 +42,9 @@ from urllib.request import unquote, quote
 CONFIDENCE = 100
 
 if sys.platform == 'win32': #don't be fooled, this is for 64 bits too
-	CONFIG = Path('C:\RetroArch-Win64\retroarch.cfg') #64bits default installer path
+	CONFIG = Path(r'C:/RetroArch-Win64/retroarch.cfg') #64bits default installer path
 	if not CONFIG.exists():
-		CONFIG = Path('C:\RetroArch\retroarch.cfg') #fallback to the 32 bits default installer path
+		CONFIG = Path(r'C:/RetroArch/retroarch.cfg') #fallback to the 32 bits default installer path
 elif sys.platform == 'darwin':
 	CONFIG = Path(Path.home(), 'Documents', 'Retroarch', 'retroarch.cfg') #what I _think_ is the default on macosx
 elif sys.platform.startswith('linux'):
