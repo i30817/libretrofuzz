@@ -1,9 +1,6 @@
 #! /usr/bin/env python3
 
 
-
-#dependency install for testing: pip3 install thefuzz thefuzz[speedup] beautifulsoup4 typer[all] pick
-
 #this downloads thumbnails for retroarch playlists
 #it uses fuzzy matching to find the most similar name to the names, based on the playlist description.
 #there may be false positives, especially if the thumbnail server does not have the game but does have
@@ -125,7 +122,7 @@ Example:
 
 To update this program with pip installed, type:
 
-pip3 install --upgrade git+https://github.com/i30817/libretrofuzz.git
+pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/master.zip
 	"""
 	if not cfg or not cfg.exists() or not cfg.is_file():
 		typer.echo(f'Invalid Retroarch cfg file: {cfg}')
