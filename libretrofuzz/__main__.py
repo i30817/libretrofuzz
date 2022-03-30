@@ -54,23 +54,14 @@ forbidden	=	r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u000
 				r'\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015' + \
 				r'\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u003a\u002a\u003f\u005c\u002f\u0026]' 
 
-def getPlaylistsPath(cfg: Path):
+def getDirectoryPath(cfg: Path, directory: str):
 	with open(cfg) as f:
 	    file_content = '[DUMMY]\n' + f.read()
 	import configparser
 	configParser = configparser.RawConfigParser()
 	configParser.read_string(file_content)
-	playlist_dir = os.path.expanduser(configParser['DUMMY']['playlist_directory'].strip('"'))
-	return Path(playlist_dir)
-
-def getThumbnailsPath(cfg: Path):
-	with open(cfg) as f:
-	    file_content = '[DUMMY]\n' + f.read()
-	import configparser
-	configParser = configparser.RawConfigParser()
-	configParser.read_string(file_content)
-	thumbnails_directory = os.path.expanduser(configParser['DUMMY']['thumbnails_directory'].strip('"'))
-	return Path(thumbnails_directory)
+	dirp = os.path.expanduser(configParser['DUMMY'][directory].strip('\t "'))
+	return Path(dirp)
 
 def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not provided, asked from the user.'),
 		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
@@ -124,13 +115,13 @@ To update this program with pip installed, type:
 
 pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/master.zip
 	"""
-	if not cfg or not cfg.exists() or not cfg.is_file():
+	if not cfg or not cfg.is_file():
 		typer.echo(f'Invalid Retroarch cfg file: {cfg}')
 		raise typer.Abort()
 	
-	playlist_dir = getPlaylistsPath(cfg)
+	playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
 	
-	if not playlist_dir.exists() or not playlist_dir.is_dir():
+	if not playlist_dir.is_dir():
 		typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
 		raise typer.Abort()
 	
@@ -139,7 +130,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 	if not PLAYLISTS:
 		typer.echo(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
 		raise typer.Abort()
-		
+	
 	if playlist and not playlist.endswith('.lpl'):
 		playlist = playlist + '.lpl'
 	
@@ -171,7 +162,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 	
 	playlist = Path(playlist_dir, playlist)
 	destination = os.path.basename(playlist)[:-4] #to allow playlists different thumbnail sources than the system name use the playlist name
-	thumb_dir = Path(getThumbnailsPath(cfg),destination) 
+	thumb_dir = Path(getDirectoryPath(cfg, 'thumbnails_directory'),destination) 
 	lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system) #then get the thumbnails from the system name
 	
 	names = []
