@@ -60,7 +60,7 @@ def getDirectoryPath(cfg: Path, directory: str):
 	import configparser
 	configParser = configparser.RawConfigParser()
 	configParser.read_string(file_content)
-	dirp = os.path.expanduser(configParser['DUMMY'][directory].strip('\t "'))
+	dirp = os.path.expanduser(configParser['DUMMY'][directory].strip('\t ').strip('"'))
 	return Path(dirp)
 
 def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not provided, asked from the user.'),
