@@ -56,7 +56,7 @@ forbidden	=	r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u000
 
 def getDirectoryPath(cfg: Path, directory: str):
 	with open(cfg) as f:
-	    file_content = '[DUMMY]\n' + f.read()
+		file_content = '[DUMMY]\n' + f.read()
 	import configparser
 	configParser = configparser.RawConfigParser()
 	configParser.read_string(file_content)
@@ -119,6 +119,11 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 		typer.echo(f'Invalid Retroarch cfg file: {cfg}')
 		raise typer.Abort()
 	
+	thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
+	if not thumbnails_directory.is_dir():
+		typer.echo(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
+		raise typer.Abort()
+	
 	playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
 	
 	if not playlist_dir.is_dir():
@@ -161,21 +166,21 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 		system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)
 	
 	playlist = Path(playlist_dir, playlist)
-	destination = os.path.basename(playlist)[:-4] #to allow playlists different thumbnail sources than the system name use the playlist name
-	thumb_dir = Path(getDirectoryPath(cfg, 'thumbnails_directory'),destination) 
-	lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system) #then get the thumbnails from the system name
 	
 	names = []
-	
 	with open(playlist) as f:
 		data = json.load(f)
 		for r in data['items']:
-			names.append(r['label'])
-			
+			assert 'label' in r and r['label'].strip() != '', f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no label'
+			assert 'db_name' in r and r['db_name'].endswith('.lpl'), f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no valid db_name'
+			#add the label name and the db name (it's a playlist name, minus the extension '.lpl')
+			names.append( (r['label'], r['db_name'][:-4]) )
+	
 	if len(names) == 0:
 		typer.echo(f'No names found in playlist {playlist}')
 		raise typer.Abort()
 	
+	lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system) #then get the thumbnails from the system name
 	thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Snaps', 'Named_Titles'])
 	args = []
 	for tdir in ['/Named_Boxarts/', '/Named_Snaps/', '/Named_Titles/']:
@@ -307,8 +312,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 	remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Snaps.keys(), thumbs.Named_Titles.keys())
 	#turn into a list of tuples, original and normalized
 	remote_names = list(map(lambda x: (x, norm(x)), remote_names))
-	
-	for name in names:
+	for (name,destination) in names:
 		#if the user used filters, filter everything that doesn't match any of the globs
 		if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
 			continue
@@ -347,6 +351,11 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 		(thumbnail, _), i_max = process.extractOne((None,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
 		
 		if thumbnail != '' and ( i_max >= CONFIDENCE or nofail ):
+			#This is tricky - thumbnails download destination is not based on the playlist name (because the user can use other names),
+			#or the core name or even the scan dir. It's based on the db_name playlist on each and every playlist entry.
+			#Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
+			#This is just for the destination, not the source.
+			thumb_dir = Path(thumbnails_directory,destination)
 			#if no filtering and merge is turned off, only download if all thumbnail types are missing
 			allow = True
 			if not filters and nomerge:
