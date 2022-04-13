@@ -22,7 +22,7 @@ import sys
 import io
 import re
 import fnmatch
-from thefuzz import process, fuzz
+from rapidfuzz import process, fuzz
 from urllib.request import urlopen
 import collections
 import shutil
@@ -271,8 +271,8 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 			t = re.sub('\s+', ' ', t).lower().strip()
 		return t
 	
-	def myscorer(s1, s2, force_ascii=True, full_process=True):
-		similarity = fuzz.token_set_ratio(s1,s2,force_ascii,full_process)
+	def myscorer(s1, s2, processor=None, score_cutoff=None):
+		similarity = fuzz.token_set_ratio(s1,s2,processor=processor,score_cutoff=score_cutoff)
 		#combine the token set ratio scorer with a common prefix heuristic to give priority to longer similar names
 		#This helps prevents false positives for shorter strings
 		#which token set ratio is prone to because it sets score to 100
@@ -310,8 +310,9 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 	#we choose the highest similarity of all 3 directories, since no mixed matches are allowed
 	remote_names = set()
 	remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Snaps.keys(), thumbs.Named_Titles.keys())
-	#turn into a list of tuples, original and normalized
-	remote_names = list(map(lambda x: (x, norm(x)), remote_names))
+	#turn into a dict, original key and normalized value
+	remote_names = { x : norm(x) for x in remote_names }
+	
 	for (name,destination) in names:
 		#if the user used filters, filter everything that doesn't match any of the globs
 		if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
@@ -347,10 +348,9 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 		#unlike the server thumbnails, this wasn't done yet
 		nameaux = norm(nameaux)
 
-		#operate on tuples to have a inbuilt cache (to speed up by not applying normalization every iteration)
-		(thumbnail, _), i_max = process.extractOne((None,nameaux), remote_names, processor=lambda x: x[1], scorer=myscorer)
-		
-		if thumbnail != '' and ( i_max >= CONFIDENCE or nofail ):
+		#operate on cache (to speed up by not applying normalization every iteration)
+		norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=myscorer,processor=None,score_cutoff=None) or (None, 0, None)		
+		if thumbnail and ( i_max >= CONFIDENCE or nofail ):
 			#This is tricky - thumbnails download destination is not based on the playlist name (because the user can use other names),
 			#or the core name or even the scan dir. It's based on the db_name playlist on each and every playlist entry.
 			#Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
@@ -364,7 +364,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 					return not p.exists() or os.path.getsize(p) == 0
 				allow = all(map(thumbcheck, thumbs._fields))
 			if allow:
-				print("{:>5}".format(str(i_max)+'% ') + f'Success: {nameaux} -> {norm(thumbnail)}')
+				print("{:>5}".format(str(int(i_max))+'% ') + f'Success: {nameaux} -> {norm_thumbnail}')
 				for dirname in thumbs._fields:
 					thumbmap = getattr(thumbs, dirname)
 					if thumbnail in thumbmap:
@@ -382,8 +382,10 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 									print(e)
 									retry_count = retry_count - 1
 									p.unlink(missing_ok=True)
+			else:
+				print("{:>5}".format(str(0)+'% ') + f'Skipped: {nameaux} -> {norm_thumbnail}')
 		else:
-			print("{:>5}".format(str(i_max)+'% ') + f'Failure: {nameaux} -> {norm(thumbnail)}')
+			print("{:>5}".format(str(int(i_max))+'% ') + f'Failure: {nameaux} -> {norm_thumbnail}')
 
 def main():
 	typer.run(mainaux)
