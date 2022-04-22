@@ -29,6 +29,7 @@ import shutil
 from bs4 import BeautifulSoup
 from urllib.error import HTTPError, URLError
 from urllib.request import unquote, quote
+from tempfile import TemporaryDirectory
 
 
 ###########################################
@@ -37,6 +38,7 @@ from urllib.request import unquote, quote
 
 
 CONFIDENCE = 100
+MAX_RETRIES = 3
 
 if sys.platform == 'win32': #don't be fooled, this is for 64 bits too
 	CONFIG = Path(r'C:/RetroArch-Win64/retroarch.cfg') #64bits default installer path
@@ -63,17 +65,17 @@ def getDirectoryPath(cfg: Path, directory: str):
 	dirp = os.path.expanduser(configParser['DUMMY'][directory].strip('\t ').strip('"'))
 	return Path(dirp)
 
-def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not provided, asked from the user.'),
-		playlist: str = typer.Option(None, help='Playlist name to download thumbnails for. If not provided, asked from the user.'),
-		system: str = typer.Option(None, help='Directory in the server to download thumbnails. If not provided, asked from the user.'),
-		filters: Optional[List[str]] = typer.Option(None, '--filter', help='Filename glob filter for game labels in the playlist, you can add this option more than once. This is the only way to force a refresh from inside the program if the thumbnails already exist in the cache.'),
-		nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with filter since filters delete every match before download.'),
-		nofail: bool = typer.Option(False, '--no-fail', help='Always download for any score. Best used with filter.'),
+def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
+		playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
+		system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
+		filters: Optional[List[str]] = typer.Option(None, '--reset', metavar='FILTER', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --reset \'*\' downloads all.'),
+		nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --reset.'),
+		nofail: bool = typer.Option(False, '--no-fail', help='Download any score. Best used with --reset as filter.'),
 		nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
 		hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
-		nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores subtitles, \' - \' or \': \' style. Best used if the playlist labels have no subtitles. Note that \':\' can only occur in local labels, not on libretro names, so that only matches a long local label to a short name on the server, and in that case you should first try without this option, since long names are more common on the server.'),
+		nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores subtitles after \' - \' or \': \' from both the server names and labels. Best used with --reset, unless all of the playlist has no subtitles. Note, \':\' can not occur in server filenames, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), you should try first without this option.'),
 		rmspaces: bool = typer.Option(False, '--rmspaces', help='Instead of uniquifying spaces in normalization, remove them, for playlists with no spaces in the labels.'),
-		before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of a parenthesis of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.')
+		before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.')
 	):
 	"""
 Fuzzy Retroarch thumbnail downloader
@@ -88,7 +90,7 @@ Example:
 
  libretro-fuzz --no-subtitle --rmspaces --before '_'
 
- The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles, don't have spaces, and all the metadata is not separated from the name by parenthesis. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
+ The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles, don't have spaces, and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
 
 Note that the system name you download from doesn't have to be the same as the playlist name.
 
@@ -107,9 +109,9 @@ False positives will then mostly be from the thumbnail server not having a singl
 
 Example:
 
- libretro-fuzz --no-subtitle --rmspaces --before '_' --filter '[Ii]shar*'
+ libretro-fuzz --no-subtitle --rmspaces --before '_' --reset '[Ii]shar*'
 
- The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is slightly different (for instance, because it is a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload just the affected thumbnails with a filter, in this example, the Ishar series in the WHDLoad playlist.
+ The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
 To update this program with pip installed, type:
 
@@ -202,7 +204,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 	if before:
 		hack = False
 		nometa = True
-
+	
 	def removeparenthesis(s, open_p='(', close_p=')'):
 		nb_rep = 1
 		while (nb_rep):
@@ -229,7 +231,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 		t = t.replace('V'  ,  '5')
 		t = t.replace('IX',   '9')
 		t = t.replace('X',   '10')
-		t = t.replace('I',    '1')
+		t = t.replace('I',	'1')
 		#definite articles in several european languages
 		#with two forms because people keep moving them to the end
 		t = t.replace(', The', '')
@@ -293,7 +295,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 	def nosubtitle_aux(t,subtitle_marker=' - '):
 		#Ignore metadata (but do not delete) and get the string before it
 		no_meta = re.search(r'(^[^[({]*)', t)
-		#last subtitle marker and everything there until the end (last because i noticed that 'subsubtitles' exist, 
+		#last subtitle marker and everything there until the end (last because i noticed that 'subsubtitles' exist,
 		#for instance, ultima 7 - part 1|2 - subtitle
 		subtitle = re.search(rf'.*({subtitle_marker}.*)', no_meta.group(1) if no_meta else t)
 		if subtitle:
@@ -312,80 +314,112 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 	remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Snaps.keys(), thumbs.Named_Titles.keys())
 	#turn into a dict, original key and normalized value
 	remote_names = { x : norm(x) for x in remote_names }
-	
-	for (name,destination) in names:
-		#if the user used filters, filter everything that doesn't match any of the globs
-		if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
-			continue
-		
-		#to simplify this code, the forbidden characters are replaced twice, 
-		#on the string that is going to be the filename and the modified string copy of that that is going to be matched.
-		#it could be done only once, but that would require separating the colon character for subtitle matching,
-		#and the 'before' operation would have to find the index before the match to apply it after. A mess.
-		
-		nameaux = name
-		
-		#'before' has priority over subtitle removal
-		if before:
-			#Ignore metadata and get the string before it
-			no_meta = re.search(r'(^[^[({]*)', nameaux)
-			if no_meta:
-				before_index = no_meta.group(1).find(before)
-				if before_index != -1:
-					nameaux = nameaux[0:before_index]
-		
-		#there is a second form of subtitles, which doesn't appear in the thumbnail server directly but can appear in linux game names
-		#that can be more faithful to the real name. It uses the colon character, which is forbidden in windows and only applies to filenames.
-		#Note that this does mean that if the servername has 'Name_ subtitle.png' and not 'Name - subtitle.png' there is less chance of a match,
-		#but that is rarer on the server than the opposite.
-		#not to mention that this only applies if the user signals 'no-subtitle', which presumably means they tried without it - which does match.
-		if nosubtitle:
-			nameaux = nosubtitle_aux(nameaux, ': ')
-		
-		#only the local names should have forbidden characters
-		name = re.sub(forbidden, '_', name )
-		nameaux = re.sub(forbidden, '_', nameaux )
-		#unlike the server thumbnails, this wasn't done yet
-		nameaux = norm(nameaux)
-
-		#operate on cache (to speed up by not applying normalization every iteration)
-		norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=myscorer,processor=None,score_cutoff=None) or (None, 0, None)		
-		if thumbnail and ( i_max >= CONFIDENCE or nofail ):
-			#This is tricky - thumbnails download destination is not based on the playlist name (because the user can use other names),
-			#or the core name or even the scan dir. It's based on the db_name playlist on each and every playlist entry.
-			#Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
-			#This is just for the destination, not the source.
-			thumb_dir = Path(thumbnails_directory,destination)
-			#if no filtering and merge is turned off, only download if all thumbnail types are missing
-			allow = True
-			if not filters and nomerge:
-				def thumbcheck(thumb_path):
-					p = Path(thumb_dir, thumb_path, name+'.png')
-					return not p.exists() or os.path.getsize(p) == 0
-				allow = all(map(thumbcheck, thumbs._fields))
-			if allow:
-				print("{:>5}".format(str(int(i_max))+'% ') + f'Success: {nameaux} -> {norm_thumbnail}')
-				for dirname in thumbs._fields:
-					thumbmap = getattr(thumbs, dirname)
-					if thumbnail in thumbmap:
-						p = Path(thumb_dir, dirname)
-						os.makedirs(p, exist_ok=True)
-						p = Path(p, name + '.png')
-						if filters or (p.exists() and os.path.getsize(p) == 0):
-							p.unlink(missing_ok=True)
-						retry_count = 3
-						while not p.exists() and retry_count > 0:
-							with open(p, 'w+b') as f:
-								try:
-									f.write(urlopen(thumbmap[thumbnail], timeout=30).read())
-								except Exception as e:
-									print(e)
-									retry_count = retry_count - 1
-									p.unlink(missing_ok=True)
+	#temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
+	#parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
+	#it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
+	#a security risk of MitM. Not sure if this helps with that, but at least it won't stop working in the future once that is removed.
+	with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
+		for (name,destination) in names:
+			#if the user used filters, filter everything that doesn't match any of the globs
+			if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
+				continue
+			
+			#to simplify this code, the forbidden characters are replaced twice,
+			#on the string that is going to be the filename and the modified string copy of that that is going to be matched.
+			#it could be done only once, but that would require separating the colon character for subtitle matching,
+			#and the 'before' operation would have to find the index before the match to apply it after. A mess.
+			
+			nameaux = name
+			
+			#'before' has priority over subtitle removal
+			if before:
+				#Ignore metadata and get the string before it
+				no_meta = re.search(r'(^[^[({]*)', nameaux)
+				if no_meta:
+					before_index = no_meta.group(1).find(before)
+					if before_index != -1:
+						nameaux = nameaux[0:before_index]
+			
+			#there is a second form of subtitles, which doesn't appear in the thumbnail server directly but can appear in linux game names
+			#that can be more faithful to the real name. It uses the colon character, which is forbidden in windows and only applies to filenames.
+			#Note that this does mean that if the servername has 'Name_ subtitle.png' and not 'Name - subtitle.png' there is less chance of a match,
+			#but that is rarer on the server than the opposite.
+			#not to mention that this only applies if the user signals 'no-subtitle', which presumably means they tried without it - which does match.
+			if nosubtitle:
+				nameaux = nosubtitle_aux(nameaux, ': ')
+			
+			#only the local names should have forbidden characters
+			name = re.sub(forbidden, '_', name )
+			nameaux = re.sub(forbidden, '_', nameaux )
+			#unlike the server thumbnails, this wasn't done yet
+			nameaux = norm(nameaux)
+			
+			#operate on cache (to speed up by not applying normalization every iteration)
+			norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=myscorer,processor=None,score_cutoff=None) or (None, 0, None)
+			if thumbnail and ( i_max >= CONFIDENCE or nofail ):
+				#This is tricky - thumbnails download destination is not based on the playlist name (because the user can use other names),
+				#or the core name or even the scan dir. It's based on the db_name playlist on each and every playlist entry.
+				#Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
+				#This is just for the destination, not the source.
+				thumb_dir = Path(thumbnails_directory,destination)
+				#if no filtering and merge is turned off, only download if all thumbnail types are missing
+				allow = True
+				if not filters and nomerge:
+					def thumbcheck(thumb_path):
+						p = Path(thumb_dir, thumb_path, name+'.png')
+						return not p.exists() or os.path.getsize(p) == 0
+					allow = all(map(thumbcheck, thumbs._fields))
+				if allow:
+					any_download = False
+					for dirname in thumbs._fields:
+						parent = Path(thumb_dir, dirname)
+						real = Path(parent, name + '.png')
+						tmp_parent = Path(tmpdir, dirname)
+						temp = Path(tmp_parent, name + '.png')
+						
+						#defective file, do this before checking if you have something to download
+						#should probably check if it is a valid png instead or in addition.
+						if real.exists() and os.path.getsize(real) == 0:
+							real.unlink(missing_ok=True)
+						
+						#something to download
+						thumbmap = getattr(thumbs, dirname)
+						if thumbnail in thumbmap:
+							os.makedirs(parent, exist_ok=True)
+							os.makedirs(tmp_parent, exist_ok=True)
+							
+							retry_count = MAX_RETRIES
+							downloaded = False
+							
+							def download():
+								with open(temp, 'w+b') as f:
+									try:
+										f.write(urlopen(thumbmap[thumbnail], timeout=15).read())
+										downloaded = True
+									except Exception as e:
+										retry_count = retry_count - 1
+										downloaded = False
+										if retry_count == 0:
+											print(f'Exception: {e}, label: {name}, thumbnail-type: {dirname}, tempfile: {temp}', file=sys.stderr)
+									finally:
+										if downloaded:
+											shutil.move(temp, real)
+							if filters:
+								while not downloaded and retry_count > 0:
+									download()
+							else:
+								while not real.exists() and retry_count > 0:
+									download()
+							any_download = any_download or downloaded
+						elif filters:
+							#nothing to download but we want to remove images that may be there in the case of --reset.
+							real.unlink(missing_ok=True)
+					if any_download:
+						print("{:>5}".format(str(int(i_max))+'% ') + f'Success: {nameaux} -> {norm_thumbnail}')
+				else:
+					print("{:>5}".format(str(0)+'% ') + f'Skipped: {nameaux} -> {norm_thumbnail}')
 			else:
-				print("{:>5}".format(str(0)+'% ') + f'Skipped: {nameaux} -> {norm_thumbnail}')
-		else:
-			print("{:>5}".format(str(int(i_max))+'% ') + f'Failure: {nameaux} -> {norm_thumbnail}')
+				print("{:>5}".format(str(int(i_max))+'% ') + f'Failure: {nameaux} -> {norm_thumbnail}')
 
 def main():
 	typer.run(mainaux)

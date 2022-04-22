@@ -10,7 +10,7 @@ It has several options to fit unusual labels, but you can just run it to get the
 Example:
  ``libretro-fuzz --no-subtitle --rmspaces --before '_'``
  
- The Retroplay WHDLoad set has labels like ``MonkeyIsland2_v1.3_0020`` after a manual scan. These labels don't have subtitles, don't have spaces, and all the metadata is not separated from the name by parenthesis. Select the playlist that contains those whdloads and the system name ``Commodore - Amiga`` to download from the libretro amiga thumbnails.
+ The Retroplay WHDLoad set has labels like ``MonkeyIsland2_v1.3_0020`` after a manual scan. These labels don't have subtitles, don't have spaces, and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name ``Commodore - Amiga`` to download from the libretro amiga thumbnails.
 
 Note that the system name you download from doesn't have to be the same as the playlist name.
 
@@ -27,9 +27,9 @@ Because of this increased risk of false positives with options, the default is t
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
 
 Example:
-  ``libretro-fuzz --no-subtitle --rmspaces --before '_' --filter '[Ii]shar*'``
+  ``libretro-fuzz --no-subtitle --rmspaces --before '_' --reset '[Ii]shar*'``
   
-  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant, even if yours is slightly different (for instance, because it is a hack), as long as it is more similar than another game in the series or variant, it will be chosen. Then you can redownload just the affected thumbnails with a filter, in this example, the Ishar series in the WHDLoad playlist.
+  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
 
 **Usage: libretro-fuzz [OPTIONS] [CFG]**
@@ -39,37 +39,34 @@ Arguments:
   [default: ~/.config/retroarch/retroarch.cfg]
 
 Options:
-  --playlist TEXT       Playlist name to download thumbnails for. If not
-                        provided, asked from the user.
-  --system TEXT         Directory in the server to download thumbnails. If not
-                        provided, asked from the user.
-  --filter TEXT         Filename glob filter for game labels in the playlist,
-                        you can add this option more than once. This is the
-                        only way to force a refresh from inside the program if
-                        the thumbnails already exist in the cache.
+  --playlist NAME       Playlist name with labels used for thumbnail fuzzy
+                        matching. If not provided, asked from the user.
+  --system NAME         Directory name in the server to download thumbnails.
+                        If not provided, asked from the user.
+  --reset FILTER        Restricts downloads to game labels globs - not paths -
+                        in the playlist, can be used multiple times and
+                        matches reset thumbnails, --reset '*' downloads all.
   --no-merge            Disables missing thumbnails download for a label if
                         there is at least one in cache to avoid mixing
                         thumbnails from different server directories on
-                        repeated calls. No effect if called with filter since
-                        filters delete every match before download.
-  --no-fail             Always download for any score. Best used with filter.
+                        repeated calls. No effect if called with --reset.
+  --no-fail             Download any score. Best used with --reset as filter.
   --no-meta             Ignores () delimited metadata and may cause false
                         positives. Forced with --before.
   --hack                Matches [] delimited metadata and may cause false
                         positives, Best used if the hack has thumbnails.
                         Ignored with --before.
-  --no-subtitle         Ignores subtitles, ' - ' or ': ' style. Best used if
-                        the playlist labels have no subtitles. Note that ':'
-                        can only occur in local labels, not on libretro names,
-                        so that only matches a long local label to a short
-                        name on the server, and in that case you should first
-                        try without this option, since long names are more
-                        common on the server.
+  --no-subtitle         Ignores subtitles after ' - ' or ': ' from both the
+                        server names and labels. Best used with --reset,
+                        unless all of the playlist has no subtitles. Note, ':'
+                        can not occur in server filenames, so if the server
+                        has ``Name_ subtitle.png`` and not ``Name - subtitle.png``
+                        (uncommon), you should try first without this option.
   --rmspaces            Instead of uniquifying spaces in normalization, remove
                         them, for playlists with no spaces in the labels.
   --before TEXT         Use only the part of the label before TEXT to match.
-                        TEXT may not be inside of a parenthesis of any kind,
-                        may cause false positives but some labels do not have
+                        TEXT may not be inside of brackets of any kind, may
+                        cause false positives but some labels do not have
                         traditional separators. Forces metadata to be ignored.
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or
