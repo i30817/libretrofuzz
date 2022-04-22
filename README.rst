@@ -1,7 +1,7 @@
 **Fuzzy Retroarch thumbnail downloader**
 ========================================
 
-In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download. 
+In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
 
 This program, for each game label on a playlist, downloads the 'most similar' image to display the image in retroarch.
 
