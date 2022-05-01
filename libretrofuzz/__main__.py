@@ -392,6 +392,8 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                             downloaded = False
                             
                             def download():
+                                nonlocal downloaded
+                                nonlocal retry_count
                                 with open(temp, 'w+b') as f:
                                     try:
                                         f.write(urlopen(thumbmap[thumbnail], timeout=15).read())
