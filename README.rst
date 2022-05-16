@@ -35,7 +35,7 @@ Example:
 **Usage: libretro-fuzz [OPTIONS] [CFG]**
 
 Arguments:
-  [CFG]  Path to the retroarch cfg file. If not provided, asked from the user.
+  [CFG]  Path to the retroarch cfg file. If not default, asked from the user.
   [default: ~/.config/retroarch/retroarch.cfg]
 
 Options:
