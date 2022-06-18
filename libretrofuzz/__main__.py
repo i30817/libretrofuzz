@@ -77,14 +77,14 @@ class RzipStreamReader(object):
                 totalsize = unpack('<Q', file.read(8) )[0]
                 checksize = 0
                 #collect all the file into a 'string file' object
-                with io.StringIO() as f:
+                with io.BytesIO() as f:
                     #for each chunk of zlib compressed file parts
                     bsize = file.read(4)
                     while bsize != b'':
                         size = unpack('<I', bsize)[0]
                         dbytes = zlib.decompress(file.read(size))
                         checksize += len(dbytes)
-                        f.write( dbytes.decode('utf-8') )
+                        f.write( dbytes )
                         bsize = file.read(4)
                     assert checksize == totalsize, f'{checksize} != {totalsize}'
                     f.seek(0) #reset for the next reader.
