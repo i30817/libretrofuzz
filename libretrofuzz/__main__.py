@@ -62,7 +62,7 @@ forbidden = r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u000
             r'\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u003a\u002a\u003f\u005c\u002f\u0026]'
 
 #handle for the retroarch specific compressed playlist fileformat
-class RzipStreamReader(object):
+class RzipReader(object):
     def __init__(self, file_name):
         self.file_name = file_name
 
@@ -76,7 +76,7 @@ class RzipStreamReader(object):
                 chunksize = unpack('<I', file.read(4) )[0] #little endian
                 totalsize = unpack('<Q', file.read(8) )[0]
                 checksize = 0
-                #collect all the file into a 'string file' object
+                #collect all the file into a 'byte file' object
                 with io.BytesIO() as f:
                     #for each chunk of zlib compressed file parts
                     bsize = file.read(4)
@@ -208,7 +208,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     playlist = Path(playlist_dir, playlist)
     
     names = []
-    with RzipStreamReader(playlist).open() as f:
+    with RzipReader(playlist).open() as f:
         data = json.load(f)
         for r in data['items']:
             assert 'label' in r and r['label'].strip() != '', f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no label'
