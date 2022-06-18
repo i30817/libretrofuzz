@@ -22,6 +22,7 @@ import sys
 import io
 import re
 import fnmatch
+import zlib
 from rapidfuzz import process, fuzz
 from urllib.request import urlopen
 import collections
@@ -30,6 +31,10 @@ from bs4 import BeautifulSoup
 from urllib.error import HTTPError, URLError
 from urllib.request import unquote, quote
 from tempfile import TemporaryDirectory
+from contextlib import contextmanager
+from struct import unpack
+
+
 
 
 ###########################################
@@ -55,6 +60,39 @@ else:
 forbidden = r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008' + \
             r'\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015' + \
             r'\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u003a\u002a\u003f\u005c\u002f\u0026]'
+
+#handle for the retroarch specific compressed playlist fileformat
+class RzipStreamReader(object):
+    def __init__(self, file_name):
+        self.file_name = file_name
+
+    @contextmanager
+    def open(self):
+        try:
+            file = open(self.file_name, 'rb')
+            header = os.pread(file.fileno(), 6, 0) #this function resets the stream
+            if header.decode() == '#RZIPv':
+                file.read(8) #skip all the header parts
+                chunksize = unpack('<I', file.read(4) )[0] #little endian
+                totalsize = unpack('<Q', file.read(8) )[0]
+                checksize = 0
+                #collect all the file into a 'string file' object
+                with io.StringIO() as f:
+                    #for each chunk of zlib compressed file parts
+                    bsize = file.read(4)
+                    while bsize != b'':
+                        size = unpack('<I', bsize)[0]
+                        dbytes = zlib.decompress(file.read(size))
+                        checksize += len(dbytes)
+                        f.write( dbytes.decode('utf-8') )
+                        bsize = file.read(4)
+                    assert checksize == totalsize, f'{checksize} != {totalsize}'
+                    f.seek(0) #reset for the next reader.
+                    yield f
+            else:
+                yield file
+        finally:
+            file.close()
 
 def getDirectoryPath(cfg: Path, directory: str):
     with open(cfg) as f:
@@ -170,7 +208,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     playlist = Path(playlist_dir, playlist)
     
     names = []
-    with open(playlist) as f:
+    with RzipStreamReader(playlist).open() as f:
         data = json.load(f)
         for r in data['items']:
             assert 'label' in r and r['label'].strip() != '', f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no label'
