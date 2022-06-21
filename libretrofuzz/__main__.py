@@ -314,7 +314,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         t = t.replace(f'Os{s}',  '')
         t = t.replace(f',{s}As', '')
         t = t.replace(f'As{s}',  '')
-        #remove all punctuation
+        #remove all punctuation, '&' is already a forbidden character so it was replaced by '_' then ' ' or '' above
         t = replacemany(t, ',.!?#\'', '')
         #this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works (spaces optional).
         #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ' '
