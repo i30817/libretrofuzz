@@ -254,12 +254,13 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         for nextchar in to_be_replaced:
             our_str = our_str.replace(nextchar, replace_with)
         return our_str
-    
+
     def normalizer(t):
         if nometa:
             t = removeparenthesis(t,'(',')')
         if not hack:
             t = removeparenthesis(t,'[',']')
+        #order is just cosmetic so the 1-10 works as expected - there is no harm done if XIV gets turned into 104 in both sides
         t = t.replace('VIII', '8')
         t = t.replace('VII',  '7')
         t = t.replace('VI' ,  '6')
@@ -270,45 +271,52 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         t = t.replace('IX',   '9')
         t = t.replace('X',   '10')
         t = t.replace('I',    '1')
-        #definite articles in several european languages
-        #with two forms because people keep moving them to the end
-        t = t.replace(', The', '')
-        t = t.replace('The ',  '')
-        t = t.replace(', Le', '')
-        t = t.replace('Le ',  '')
-        t = t.replace(', La', '')
-        t = t.replace('La ',  '')
-        t = t.replace(', Les', '')
-        t = t.replace('Les ',  '')
-        t = t.replace(', Der', '')
-        t = t.replace('Der ',  '')
-        t = t.replace(', Die', '')
-        t = t.replace('Die ',  '')
-        t = t.replace(', Das', '')
-        t = t.replace('Das ',  '')
-        t = t.replace(', El', '')
-        t = t.replace('El ',  '')
-        t = t.replace(', Los', '')
-        t = t.replace('Los ',  '')
-        t = t.replace(', Las', '')
-        t = t.replace('Las ',  '')
-        t = t.replace(', O', '')
-        t = t.replace('O ',  '')
-        t = t.replace(', A', '')
-        t = t.replace('A ',  '')
-        t = t.replace(', Os', '')
-        t = t.replace('Os ',  '')
-        t = t.replace(', As', '')
-        t = t.replace('As ',  '')
-        t = t.replace('\'',  '')
         #remove all punctuation
-        t = replacemany(t, '.!?#', '')
-        #remove all metacharacters
-        t = replacemany(t, '_()[]{},-', ' ')
+        t = replacemany(t, ',.!?#\'', '')
+        #change all metacharacters to space (spaces will be uniquified or removed next)
+        t = replacemany(t, '_()[]{}-', ' ')
+        #although the remote names always have spaces, the local names may not have
+        #so in order for normalization/removal of tokens with spaces to work on 'both sides'
+        #we should normalize the spaces right away in both sides, then specialize the tokens
         if rmspaces:
-            t = re.sub('\s', '', t).lower().strip()
+            t = re.sub('\s', '', t).strip()
+            s = ''
         else:
-            t = re.sub('\s+', ' ', t).lower().strip()
+            t = re.sub('\s+', ' ', t).strip()
+            s = ' '
+        #beginning definite articles in several european languages
+        #with two forms because people keep moving them to the end (comma was removed above)
+        t = t.replace(f'{s}The', '')
+        t = t.replace(f'The{s}',  '')
+        t = t.replace(f'{s}Le', '')
+        t = t.replace(f'Le{s}',  '')
+        t = t.replace(f'{s}La', '')
+        t = t.replace(f'La{s}',  '')
+        t = t.replace(f'{s}Les', '')
+        t = t.replace(f'Les{s}',  '')
+        t = t.replace(f'{s}Der', '')
+        t = t.replace(f'Der{s}',  '')
+        t = t.replace(f'{s}Die', '')
+        t = t.replace(f'Die{s}',  '')
+        t = t.replace(f'{s}Das', '')
+        t = t.replace(f'Das{s}',  '')
+        t = t.replace(f'{s}El', '')
+        t = t.replace(f'El{s}',  '')
+        t = t.replace(f'{s}Los', '')
+        t = t.replace(f'Los{s}',  '')
+        t = t.replace(f'{s}Las', '')
+        t = t.replace(f'Las{s}',  '')
+        t = t.replace(f'{s}O', '')
+        t = t.replace(f'O{s}',  '')
+        t = t.replace(f'{s}A', '')
+        t = t.replace(f'A{s}',  '')
+        t = t.replace(f'{s}Os', '')
+        t = t.replace(f'Os{s}',  '')
+        t = t.replace(f'{s}As', '')
+        t = t.replace(f'As{s}',  '')
+        #this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works (spaces optional).
+        #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ' '
+        t = t.lower().replace(f'{s}and{s}',  f'{s}')
         return t
     
     def myscorer(s1, s2, processor=None, score_cutoff=None):
