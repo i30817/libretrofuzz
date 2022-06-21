@@ -279,10 +279,10 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         #so in order for normalization/removal of tokens with spaces to work on 'both sides'
         #we should normalize the spaces right away in both sides, then specialize the tokens
         if rmspaces:
-            t = re.sub('\s', '', t).strip()
+            t = re.sub('\s', '', t)
             s = ''
         else:
-            t = re.sub('\s+', ' ', t).strip()
+            t = re.sub('\s+', ' ', t)
             s = ' '
         #beginning definite articles in several european languages
         #with two forms because people keep moving them to the end (comma was removed above)
@@ -317,7 +317,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         #this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works (spaces optional).
         #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ' '
         t = t.lower().replace(f'{s}and{s}',  f'{s}')
-        return t
+        return t.strip()
     
     def myscorer(s1, s2, processor=None, score_cutoff=None):
         similarity = fuzz.token_set_ratio(s1,s2,processor=processor,score_cutoff=score_cutoff)
