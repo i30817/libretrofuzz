@@ -260,7 +260,19 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
             t = removeparenthesis(t,'(',')')
         if not hack:
             t = removeparenthesis(t,'[',']')
-        #order is just cosmetic so the 1-10 works as expected - there is no harm done if XIV gets turned into 104 in both sides
+        #Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
+        #If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
+        #Problem only occurs if they're different and would occur even without this transformation.
+        t = t.replace('XVIII', '18')
+        t = t.replace('XVII',  '17')
+        t = t.replace('XVI' ,  '16')
+        t = t.replace('XIII',  '13')
+        t = t.replace('XII' ,  '12')
+        t = t.replace('XIV' ,  '14')
+        t = t.replace('XV'  ,  '15')
+        t = t.replace('XIX',   '19')
+        t = t.replace('XX',   '20')
+        t = t.replace('XI',   '11')
         t = t.replace('VIII', '8')
         t = t.replace('VII',  '7')
         t = t.replace('VI' ,  '6')
