@@ -291,6 +291,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         t = t.replace(f',{s}La', '')
         t = t.replace(f'La{s}',  '')
         t = t.replace(f',{s}L\'', '')
+        #as a abbreviation these sometimes doesn't have space at the start even without --rmspaces
         t = t.replace(f'L\' ',  '')
         t = t.replace(f'L\'',  '')
         t = t.replace(f',{s}Les', '')
