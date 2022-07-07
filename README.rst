@@ -68,6 +68,8 @@ Options:
                         TEXT may not be inside of brackets of any kind, may
                         cause false positives but some labels do not have
                         traditional separators. Forces metadata to be ignored.
+  --verbose             Shows the similarity score at the start of the output
+                        lines (score >= 100 is succesful, if not skipped).
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or
                         customize the installation.
