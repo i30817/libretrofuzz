@@ -463,8 +463,8 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                                 os.makedirs(parent, exist_ok=True)
                                 os.makedirs(tmp_parent, exist_ok=True)
                                 
-                                thumbnail_type = '('+dirname[6:-1]+')'
-                                thumb_format   = f'{success_format} {thumbnail_type}' + '{bar:-10b}|{bar:10}|'
+                                thumbnail_type = dirname[6:-1]+': '
+                                thumb_format   = f'{success_format}' + '{bar:-10b}' f'{thumbnail_type}' '|{bar:10}|'
                                 retry_count = MAX_RETRIES
                                 downloaded = False
                                 
