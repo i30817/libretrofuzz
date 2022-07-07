@@ -188,7 +188,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         playlist, _ = pick(displayplaylists, 'Which playlist do you want to download thumbnails for?')
     
     try:
-        soup = BeautifulSoup(urlopen('https://thumbnails.libretro.com/', timeout=10), 'html.parser')
+        soup = BeautifulSoup(urlopen('https://thumbnails.libretro.com/', timeout=30), 'html.parser')
         SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
     except (HTTPError, URLError) as err:
         typer.echo(f'Could not get the remote thumbnail system names')
@@ -226,7 +226,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     for tdir in ['/Named_Boxarts/', '/Named_Snaps/', '/Named_Titles/']:
         lr_thumb = lr_thumbs+tdir
         try:
-            soup = BeautifulSoup(urlopen(lr_thumb, timeout=10), 'html.parser')
+            soup = BeautifulSoup(urlopen(lr_thumb, timeout=30), 'html.parser')
             l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
         except HTTPError as err:
             l1 = {} #some do not have one or more of these
