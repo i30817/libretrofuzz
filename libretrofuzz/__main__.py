@@ -117,7 +117,7 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
         rmspaces: bool = typer.Option(False, '--rmspaces', help='Instead of uniquifying spaces in normalization, remove them, for playlists with no spaces in the labels.'),
         crmspaces: bool = typer.Option(False, '--crmspaces', help='Like --rmspaces, but capitalize the following letter.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
-        verbose: bool = typer.Option(False, '--verbose', help='Shows the failures and similarity score at the start of the output lines (score >= 100 is succesful).')
+        verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and remote names in output (score >= 100 is succesful).')
     ):
     """
 Fuzzy Retroarch thumbnail downloader
@@ -436,10 +436,11 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
             norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=myscorer,processor=None,score_cutoff=None) or (None, 0, None)
             #formating legos
             zero_format    = '  0 ' if verbose else ''
-            prefix_format  = '{:>4}'.format(str(int(i_max))+' ') if verbose else ''
-            success_format = f'{prefix_format}Success: {nameaux} -> {norm_thumbnail}'
-            failure_format = f'{prefix_format}Failure: {nameaux} -> {norm_thumbnail}'
-            skipped_format = f'{zero_format}Skipped: {nameaux} -> {norm_thumbnail}'
+            prefix_format  = '{:>3} '.format(str(int(i_max))) if verbose else ''
+            name_format    = f'{nameaux} => {norm_thumbnail}' if verbose else f'{name}'
+            success_format = f'{prefix_format}Success: {name_format}'
+            failure_format = f'{prefix_format}Failure: {name_format}'
+            skipped_format = f'{zero_format}Skipped: {name_format}'
             if thumbnail and ( i_max >= CONFIDENCE or nofail ):
                 #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
                 #Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
