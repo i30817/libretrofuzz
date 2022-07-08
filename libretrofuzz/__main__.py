@@ -327,10 +327,10 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         t = t.replace(f'Los{s}',  '')
         t = t.replace(f',{s}Las', '')
         t = t.replace(f'Las{s}',  '')
-        t = t.replace(f',{s}O', '')
-        t = t.replace(f'O{s}',  '')
-        t = t.replace(f',{s}A', '')
-        t = t.replace(f'A{s}',  '')
+        t = t.replace(f',{s}O',  '')
+        t = t.replace(f'O ',     '')  #this overfits some games in the cae of no space so we only check the space case
+        t = t.replace(f',{s}A',  '')
+        t = t.replace(f'A ',     '')  #ditto
         t = t.replace(f',{s}Os', '')
         t = t.replace(f'Os{s}',  '')
         t = t.replace(f',{s}As', '')
