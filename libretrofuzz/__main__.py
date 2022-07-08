@@ -23,6 +23,7 @@ import io
 import re
 import fnmatch
 import zlib
+import string
 from rapidfuzz import process, fuzz
 from tqdm import tqdm
 import requests
@@ -114,8 +115,9 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
         hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
         nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores subtitles after \' - \' or \': \' from both the server names and labels. Best used with --reset, unless all of the playlist has no subtitles. Note, \':\' can not occur in server filenames, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), you should try first without this option.'),
         rmspaces: bool = typer.Option(False, '--rmspaces', help='Instead of uniquifying spaces in normalization, remove them, for playlists with no spaces in the labels.'),
+        crmspaces: bool = typer.Option(False, '--crmspaces', help='Like --rmspaces, but capitalize the following letter.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
-        verbose: bool = typer.Option(False, '--verbose', help='Shows the similarity score at the start of the output lines (score >= 100 is succesful, if not skipped).')
+        verbose: bool = typer.Option(False, '--verbose', help='Shows the failures and similarity score at the start of the output lines (score >= 100 is succesful).')
     ):
     """
 Fuzzy Retroarch thumbnail downloader
@@ -128,9 +130,9 @@ It has several options to fit unusual labels, but you can just run it to get the
 
 Example:
 
- libretro-fuzz --no-subtitle --rmspaces --before '_'
+ libretro-fuzz --no-subtitle --crmspaces --before '_'
 
- The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles, don't have spaces, and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
+ The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles, capitalize all the words, don't have spaces, and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
 
 Note that the system name you download from doesn't have to be the same as the playlist name.
 
@@ -267,6 +269,24 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
             t = removeparenthesis(t,'(',')')
         if not hack:
             t = removeparenthesis(t,'[',']')
+        #change all metacharacters to space (spaces will be uniquified or removed next)
+        t = replacemany(t, '_()[]{}-', ' ')
+        #although the remote names always have spaces, the local names may not have
+        #so in order for normalization/removal of tokens with spaces to work on 'both sides'
+        #we should normalize the spaces right away in both sides, then specialize the tokens
+        if rmspaces:
+            t = ''.join(t.split())
+            s = ''
+        elif crmspaces: #string.capwords is almost what i want except it lowercases the rest of the words
+            words = []
+            for word in t.split():
+                words.append(word[0].upper())
+                words.append(word[1:])
+            t = ''.join(words)
+            s = ''
+        else:
+            t = ' '.join(t.split())
+            s = ' '
         #Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
         #If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
         #Problem only occurs if they're different and would occur even without this transformation.
@@ -290,17 +310,6 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         t = t.replace('IX',   '9')
         t = t.replace('X',   '10')
         t = t.replace('I',    '1')
-        #change all metacharacters to space (spaces will be uniquified or removed next)
-        t = replacemany(t, '_()[]{}-', ' ')
-        #although the remote names always have spaces, the local names may not have
-        #so in order for normalization/removal of tokens with spaces to work on 'both sides'
-        #we should normalize the spaces right away in both sides, then specialize the tokens
-        if rmspaces:
-            t = re.sub('\s', '', t)
-            s = ''
-        else:
-            t = re.sub('\s+', ' ', t)
-            s = ' '
         #beginning definite articles in several european languages
         #with two forms because people keep moving them to the end
         t = t.replace(f',{s}The', '')
@@ -328,9 +337,9 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         t = t.replace(f',{s}Las', '')
         t = t.replace(f'Las{s}',  '')
         t = t.replace(f',{s}O',  '')
-        t = t.replace(f'O ',     '')  #this overfits some games in the cae of no space so we only check the space case
+        t = t.replace(f'O{s}',   '')
         t = t.replace(f',{s}A',  '')
-        t = t.replace(f'A ',     '')  #ditto
+        t = t.replace(f'A{s}',   '')
         t = t.replace(f',{s}Os', '')
         t = t.replace(f'Os{s}',  '')
         t = t.replace(f',{s}As', '')
@@ -515,7 +524,8 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 else:
                     print(skipped_format)
             else:
-                print(failure_format)
+                if verbose:
+                    print(failure_format)
 
 def main():
     typer.run(mainaux)

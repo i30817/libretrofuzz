@@ -8,9 +8,9 @@ This program, for each game label on a playlist, downloads the 'most similar' im
 It has several options to fit unusual labels, but you can just run it to get the most restrictive default. It will ask for the CFG, playlist and system if they're not provided.
 
 Example:
- ``libretro-fuzz --no-subtitle --rmspaces --before '_'``
+ ``libretro-fuzz --no-subtitle --crmspaces --before '_'``
  
- The Retroplay WHDLoad set has labels like ``MonkeyIsland2_v1.3_0020`` after a manual scan. These labels don't have subtitles, don't have spaces, and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name ``Commodore - Amiga`` to download from the libretro amiga thumbnails.
+ The Retroplay WHDLoad set has labels like ``MonkeyIsland2_v1.3_0020`` after a manual scan. These labels don't have subtitles, capitalize all the words, don't have spaces, and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name ``Commodore - Amiga`` to download from the libretro amiga thumbnails.
 
 Note that the system name you download from doesn't have to be the same as the playlist name.
 
@@ -64,12 +64,13 @@ Options:
                         (uncommon), you should try first without this option.
   --rmspaces            Instead of uniquifying spaces in normalization, remove
                         them, for playlists with no spaces in the labels.
+  --crmspaces           Like --rmspaces, but capitalize the following letter.
   --before TEXT         Use only the part of the label before TEXT to match.
                         TEXT may not be inside of brackets of any kind, may
                         cause false positives but some labels do not have
                         traditional separators. Forces metadata to be ignored.
-  --verbose             Shows the similarity score at the start of the output
-                        lines (score >= 100 is succesful, if not skipped).
+  --verbose             Shows the failures and similarity score at the start
+                        of the output lines (score >= 100 is succesful).
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or
                         customize the installation.
