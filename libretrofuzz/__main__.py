@@ -98,9 +98,9 @@ class RzipReader(object):
 
     @contextmanager
     def open(self):
-        try:
-            file = open(self.file_name, 'rb')
-            header = os.pread(file.fileno(), 6, 0) #this function resets the stream
+        with open(self.file_name, 'rb') as file:
+            header = file.read(6)
+        with open(self.file_name, 'rb') as file:
             if header.decode() == '#RZIPv':
                 file.read(8) #skip all the header parts
                 chunksize = unpack('<I', file.read(4) )[0] #little endian
@@ -121,8 +121,6 @@ class RzipReader(object):
                     yield f
             else:
                 yield file
-        finally:
-            file.close()
 
 def getDirectoryPath(cfg: Path, directory: str):
     with open(cfg) as f:
