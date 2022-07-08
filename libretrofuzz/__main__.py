@@ -192,7 +192,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         playlist, _ = pick(displayplaylists, 'Which playlist do you want to download thumbnails for?')
     
     #during downloads, allow the current one to be skipped by pressing space (success normalization names and scores is displayed always)
-    typer.echo(f'To skip the downloads for the current game, press CTRL-C when the download bar is visible.')
+    typer.echo(f'CTRL-C when the progressbar is visible to skip games thumbnails download.')
         
     try:
         with requests.get('https://thumbnails.libretro.com/', timeout=30, stream=True) as r:
