@@ -14,8 +14,6 @@
 
 from pathlib import Path
 from typing import Optional, List
-from pick import pick
-import typer
 import json
 import os
 import sys
@@ -24,20 +22,21 @@ import re
 import fnmatch
 import zlib
 import threading
-import curses
+import collections
+import shutil
 from pynput import keyboard
 from pynput.keyboard import Key
 from rapidfuzz import process, fuzz
 from tqdm import tqdm
-import requests
-import collections
-import shutil
+from pick import pick
 from bs4 import BeautifulSoup
-from urllib.error import HTTPError, URLError
+from requests.exceptions import RequestException
 from urllib.request import unquote, quote
 from tempfile import TemporaryDirectory
 from contextlib import contextmanager
 from struct import unpack
+import typer
+import requests
 
 
 
@@ -49,31 +48,44 @@ from struct import unpack
 
 CONFIDENCE = 100
 MAX_RETRIES = 3
-INFO_FORMAT = f'Press any key when the progressbar is visible to skip games thumbnails download.'
+stopped_format = f'...early exit...'
 
 #keyboard listener, to interrupt downloads if any key is pressed
 class StopDownload(Exception):
     def __init__(self):
         super().__init__()
+class StopProgram(Exception):
+    def __init__(self):
+        super().__init__()
 
 stop_lock = threading.Lock()
 counter = 0
-def on_press(key):
+escape  = False
+def press(key):
     global counter
     with stop_lock:
         counter += 1
-def on_release(key):
+def release(key):
     global counter
+    global escape
     with stop_lock:
-       counter -= 1
-def checkListener():
+        counter -= 1
+        if key == Key.esc:
+            escape = True
+def checkDownload():
     global counter
+    global escape
     with stop_lock:
         assert counter >= 0
+        if escape:
+            raise StopProgram()
         if counter > 0:
             raise StopDownload()
-listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-listener.start()
+def checkEscape():
+    global escape
+    with stop_lock:
+        if escape:
+            raise StopProgram()
 
 if sys.platform == 'win32': #don't be fooled, this is for 64 bits too
     CONFIG = Path(r'C:/RetroArch-Win64/retroarch.cfg') #64bits default installer path
@@ -221,7 +233,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         with requests.get('https://thumbnails.libretro.com/', timeout=30, stream=True) as r:
             soup = BeautifulSoup(r.text, 'html.parser')
         SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
-    except (HTTPError, URLError) as err:
+    except RequestException as err:
         typer.echo(f'Could not get the remote thumbnail system names')
         raise typer.Abort()
     
@@ -260,7 +272,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
             with requests.get(lr_thumb, timeout=30, stream=True) as r:
                 soup = BeautifulSoup(r.text, 'html.parser')
             l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
-        except HTTPError as err:
+        except RequestException as err:
             l1 = {} #some do not have one or more of these
         args.append(l1)
     
@@ -415,21 +427,20 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
     #turn into a dict, original key and normalized value
     remote_names = { x : norm(x) for x in remote_names }
-    #collect the printed text for the 'real' terminal after execution of this section
-    collected_text = [INFO_FORMAT]
+    #this allows to skip downloads or non-ctrl-x early exit but suppresses stdin input to make the printing predictable
+    print(f'Press escape to stop, and any other key to skip a game\'s thumbnails download.')
+    listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
+    listener.start()
+    listener.wait()
     try:
-        #this is because the progressbar breaks (by duplicating the line) if user input is allowed and we need to touch keys to skip.
-        screen = curses.initscr()
-        curses.noecho()
-        screen.clear()
-        screen.refresh()
-        print(INFO_FORMAT)
         #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
         #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
         #it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
         #a security risk of MitM. Not sure if this helps with that, but at least it won't stop working in the future once that is removed.
         with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
             for (name,destination) in names:
+                #if called escape without being in a download zone, exit right away without a cancel print
+                checkEscape()
                 #if the user used filters, filter everything that doesn't match any of the globs
                 if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
                     continue
@@ -475,7 +486,6 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 failure_format = f'{prefix_format}Failure: {name_format}'
                 cancel_format  = f'{prefix_format}Skipped: {name_format}'
                 skipped_format = f'{zero_format}Skipped: {name_format}'
-                
                 if thumbnail and ( i_max >= CONFIDENCE or nofail ):
                     #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
                     #Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
@@ -522,15 +532,13 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                                                     length = int(r.headers.get('Content-Length'))
                                                     with tqdm.wrapattr(r.raw, 'read', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as raw:
                                                         while True:
-                                                            checkListener()
+                                                            checkDownload()
                                                             chunk = raw.read(4096)
                                                             if not chunk:
                                                                 break
                                                             f.write(chunk)
                                                 downloaded = True
-                                            except StopDownload as e:
-                                                raise e
-                                            except Exception as e:
+                                            except RequestException as e:
                                                 retry_count = retry_count - 1
                                                 downloaded = False
                                                 if retry_count == 0:
@@ -549,32 +557,25 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                                 elif filters:
                                     #nothing to download but we want to remove images that may be there in the case of --reset.
                                     real.unlink(missing_ok=True)
-                            if downloaded:
-                                checkListener()
+                        except StopProgram as e:
+                            print(cancel_format)
+                            raise e
                         except StopDownload as e:
-                            for (temp, _) in downloaded_list:
-                                temp.unlink(missing_ok=True)
                             downloaded_list = []
                             print(cancel_format)
-                            collected_text.append(cancel_format)
                         for (temp, real) in downloaded_list:
                             shutil.move(temp, real)
                         if downloaded_list:
                             print(success_format)
-                            collected_text.append(success_format)
                     else:
                         print(skipped_format)
-                        collected_text.append(skipped_format)
                 else:
                     if verbose:
                         print(failure_format)
-                        collected_text.append(failure_format)
+    except StopProgram as e:
+        print(stopped_format)
     finally:
-        curses.echo()
-        curses.endwin()
         listener.stop()
-        #reprint to the 'real' terminal all the printed text.
-        print('\n'.join(collected_text))
 
 def main():
     typer.run(mainaux)
