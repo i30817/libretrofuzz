@@ -428,10 +428,11 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     #turn into a dict, original key and normalized value
     remote_names = { x : norm(x) for x in remote_names }
     #this allows to skip downloads or non-ctrl-x early exit but suppresses stdin input to make the printing predictable
-    print(f'Press escape to stop, and any other key to skip a game\'s thumbnails download.')
-    listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
-    listener.start()
-    listener.wait()
+    if sys.platform != 'darwin': #macos x requires sudo to listen to the keyboard, so no thanks.
+        print(f'Press escape to stop, and any other key to skip a game\'s thumbnails download.')
+        listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
+        listener.start()
+        listener.wait()
     try:
         #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
         #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
@@ -575,7 +576,8 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     except StopProgram as e:
         print(stopped_format)
     finally:
-        listener.stop()
+        if sys.platform != 'darwin':
+            listener.stop()
 
 def main():
     typer.run(mainaux)
