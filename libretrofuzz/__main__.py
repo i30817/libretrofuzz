@@ -482,7 +482,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 #formating legos
                 zero_format    = '  0 ' if verbose else ''
                 prefix_format  = '{:>3} '.format(str(int(i_max))) if verbose else ''
-                name_format    = f'{nameaux} => {norm_thumbnail}' if verbose else f'{name}'
+                name_format    = f'{nameaux} => {norm_thumbnail}' #if verbose else f'{name}'
                 success_format = f'{prefix_format}Success: {name_format}'
                 failure_format = f'{prefix_format}Failure: {name_format}'
                 cancel_format  = f'{prefix_format}Skipped: {name_format}'
