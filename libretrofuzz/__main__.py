@@ -429,7 +429,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     remote_names = { x : norm(x) for x in remote_names }
     #this allows to skip downloads or non-ctrl-x early exit but suppresses stdin input to make the printing predictable
     if sys.platform != 'darwin': #macos x requires sudo to listen to the keyboard, so no thanks.
-        print(f'Press escape to stop, and any other key to skip a game\'s thumbnails download.')
+        print(f'Press escape to quit, and any other key to skip a game\'s thumbnails download.')
         listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
         listener.start()
         listener.wait()
