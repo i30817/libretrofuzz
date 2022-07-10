@@ -62,9 +62,9 @@ Options:
                         can not occur in server filenames, so if the server
                         has ``Name_ subtitle.png`` and not ``Name - subtitle.png``
                         (uncommon), you should try first without this option.
-  --rmspaces            Instead of uniquifying spaces in normalization, remove
-                        them, for playlists with no spaces in the labels.
-  --crmspaces           Like --rmspaces, but capitalize the following letter.
+  --rmspaces            Remove spaces in normalization, for playlists with no
+                        spaces in the labels.
+  --crmspaces           Like --rmspaces, but capitalize words first letter.
   --before TEXT         Use only the part of the label before TEXT to match.
                         TEXT may not be inside of brackets of any kind, may
                         cause false positives but some labels do not have

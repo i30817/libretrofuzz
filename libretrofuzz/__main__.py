@@ -152,8 +152,8 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
         nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
         hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
         nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores subtitles after \' - \' or \': \' from both the server names and labels. Best used with --reset, unless all of the playlist has no subtitles. Note, \':\' can not occur in server filenames, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), you should try first without this option.'),
-        rmspaces: bool = typer.Option(False, '--rmspaces', help='Instead of uniquifying spaces in normalization, remove them, for playlists with no spaces in the labels.'),
-        crmspaces: bool = typer.Option(False, '--crmspaces', help='Like --rmspaces, but capitalize the following letter.'),
+        rmspaces: bool = typer.Option(False, '--rmspaces', help='Remove spaces in normalization, for playlists with no spaces in the labels.'),
+        crmspaces: bool = typer.Option(False, '--crmspaces', help='Like --rmspaces, but capitalize words first letter.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and remote names in output (score >= 100 is succesful).')
     ):
