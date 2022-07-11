@@ -63,15 +63,15 @@ counter = 0
 escape  = False
 def press(key):
     global counter
-    with stop_lock:
-        counter += 1
-def release(key):
-    global counter
     global escape
     with stop_lock:
-        counter -= 1
+        counter += 1
         if key == Key.esc:
             escape = True
+def release(key):
+    global counter
+    with stop_lock:
+        counter -= 1
 def checkDownload():
     global counter
     global escape
