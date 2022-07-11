@@ -92,7 +92,7 @@ if sys.platform == 'win32': #don't be fooled, this is for 64 bits too
     if not CONFIG.exists():
         CONFIG = Path(r'C:/RetroArch/retroarch.cfg') #fallback to the 32 bits default installer path
 elif sys.platform == 'darwin':
-    CONFIG = Path(Path.home(), 'Documents', 'Retroarch', 'retroarch.cfg') #what I _think_ is the default on macosx
+    CONFIG = Path(Path.home(), 'Library', 'Application Support', 'RetroArch', 'retroarch.cfg') #what I _think_ is the default on macosx
 elif sys.platform.startswith('linux'):
     CONFIG = Path(Path.home(), '.config', 'retroarch', 'retroarch.cfg') #default installer path in unix
 else:
