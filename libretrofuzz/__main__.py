@@ -495,7 +495,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 success_format = f'{prefix_format}Success: {name_format}'
                 failure_format = f'{prefix_format}Failure: {name_format}'
                 cancel_format  = f'{prefix_format}Skipped: {name_format}'
-                skipped_format = f'{zero_format}Skipped: {name_format}'
+                nomerge_format = f'{zero_format}Nomerge: {name_format}'
                 if thumbnail and ( i_max >= CONFIDENCE or nofail ):
                     #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
                     #Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
@@ -578,7 +578,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                         if downloaded_list:
                             print(success_format)
                     else:
-                        print(skipped_format)
+                        print(nomerge_format)
                 else:
                     if verbose:
                         print(failure_format)
