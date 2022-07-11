@@ -50,53 +50,25 @@ CONFIDENCE = 100
 MAX_RETRIES = 3
 stopped_format = f'...early exit...'
 
-#keyboard listener, to interrupt downloads if any key is pressed
-class StopDownload(Exception):
-    def __init__(self):
-        super().__init__()
-class StopProgram(Exception):
-    def __init__(self):
-        super().__init__()
-
-stop_lock = threading.Lock()
-counter = 0
-escape  = False
-def press(key):
-    global counter
-    global escape
-    with stop_lock:
-        counter += 1
-        if key == Key.esc:
-            escape = True
-def release(key):
-    global counter
-    with stop_lock:
-        counter -= 1
-def checkDownload():
-    global counter
-    global escape
-    with stop_lock:
-        assert counter >= 0
-        if escape:
-            raise StopProgram()
-        if counter > 0:
-            raise StopDownload()
-def checkEscape():
-    global escape
-    with stop_lock:
-        if escape:
-            raise StopProgram()
-
-if sys.platform == 'win32': #don't be fooled, this is for 64 bits too
-    CONFIG = Path(r'C:/RetroArch-Win64/retroarch.cfg') #64bits default installer path
+if sys.platform == 'win32': #this is for 64 bits too
+    #this order is to make 'portable' installs have priority in windows, a concept that doesn't exist in linux or macosx
+    #these are the default 32 and 64 bits installer paths, since there is no way to know what the user choses, check the defaults only.
+    CONFIG = Path(r'C:/RetroArch-Win64/retroarch.cfg')
     if not CONFIG.exists():
-        CONFIG = Path(r'C:/RetroArch/retroarch.cfg') #fallback to the 32 bits default installer path
+        CONFIG = Path(r'C:/RetroArch/retroarch.cfg')
+        if not CONFIG.exists():
+            print('Portable install default location config not found, trying with APPDATA location')
+            var = os.getenv('APPDATA')
+            if var:
+                CONFIG = Path(var, 'RetroArch', 'retroarch.cfg')
 elif sys.platform == 'darwin':
-    CONFIG = Path(Path.home(), 'Library', 'Application Support', 'RetroArch', 'retroarch.cfg') #what I _think_ is the default on macosx
-elif sys.platform.startswith('linux'):
-    CONFIG = Path(Path.home(), '.config', 'retroarch', 'retroarch.cfg') #default installer path in unix
-else:
-    CONFIG = None #give up
+    CONFIG = Path(Path.home(), 'Library', 'Application Support', 'RetroArch', 'retroarch.cfg')
+else: #all the rest based on linux. If they arent based on linux, they'll try the else and fail harmlessly later
+    var = os.getenv('XDG_CONFIG_HOME')
+    if var:
+        CONFIG = Path(var, 'retroarch', 'retroarch.cfg')
+    else:
+        CONFIG = Path(Path.home(), '.config', 'retroarch', 'retroarch.cfg')
 
 #00-1f are ascii control codes, rest is 'normal' illegal windows filename chars according to powershell + &
 forbidden = r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008' + \
@@ -133,6 +105,43 @@ class RzipReader(object):
                     yield f
             else:
                 yield file
+
+#keyboard listener, to interrupt downloads or stop the program
+class StopDownload(Exception):
+    def __init__(self):
+        super().__init__()
+class StopProgram(Exception):
+    def __init__(self):
+        super().__init__()
+
+stop_lock = threading.Lock()
+counter = 0
+escape  = False
+def press(key):
+    global counter
+    global escape
+    with stop_lock:
+        counter += 1
+        if key == Key.esc:
+            escape = True
+def release(key):
+    global counter
+    with stop_lock:
+        counter -= 1
+def checkDownload():
+    global counter
+    global escape
+    with stop_lock:
+        assert counter >= 0
+        if escape:
+            raise StopProgram()
+        if counter > 0:
+            raise StopDownload()
+def checkEscape():
+    global escape
+    with stop_lock:
+        if escape:
+            raise StopProgram()
 
 def getDirectoryPath(cfg: Path, directory: str):
     with open(cfg) as f:
