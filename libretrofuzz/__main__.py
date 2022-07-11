@@ -492,10 +492,10 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 zero_format    = '  0 ' if verbose else ''
                 prefix_format  = '{:>3} '.format(str(int(i_max))) if verbose else ''
                 name_format    = f'{nameaux} -> {norm_thumbnail}' if verbose else f'{name} -> {thumbnail}'
-                success_format = f'{prefix_format}Success: {name_format}'
-                failure_format = f'{prefix_format}Failure: {name_format}'
-                cancel_format  = f'{prefix_format}Skipped: {name_format}'
-                nomerge_format = f'{zero_format}Nomerge: {name_format}'
+                success_format = f'{prefix_format}{typer.style("Success", fg=typer.colors.GREEN, bold=True)}: {name_format}'
+                failure_format = f'{prefix_format}{typer.style("Failure", fg=typer.colors.RED, bold=True)}: {name_format}'
+                cancel_format  = f'{prefix_format}{typer.style("Skipped", fg=typer.colors.YELLOW, bold=True)}: {name_format}'
+                nomerge_format = f'{zero_format}{typer.style("Nomerge", fg=typer.colors.BLUE, bold=True)}: {name_format}'
                 if thumbnail and ( i_max >= CONFIDENCE or nofail ):
                     #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
                     #Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
@@ -568,22 +568,32 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                                     #nothing to download but we want to remove images that may be there in the case of --reset.
                                     real.unlink(missing_ok=True)
                         except StopProgram as e:
-                            print(cancel_format)
+                            typer.echo(cancel_format)
                             raise e
                         except StopDownload as e:
                             downloaded_list = []
-                            print(cancel_format)
+                            typer.echo(cancel_format)
                         for (temp, real) in downloaded_list:
                             shutil.move(temp, real)
                         if downloaded_list:
-                            print(success_format)
+                            typer.echo(success_format)
                     else:
-                        print(nomerge_format)
+                        #this means that this game wasn't allowed to download because it doesn't have all thumbnails missing and nomerge was on
+                        #only print this if downloaded thumbnails aren't all thumbnails for the game in the server (note, can be less than 3)
+                        missing_thumbs = False
+                        for server_set_name in thumbs._fields:
+                            server_set = getattr(thumbs, server_set_name)
+                            if thumbnail in server_set:
+                                missing_thumbs = not Path(thumb_dir, server_set_name, name+'.png').is_file()
+                                if missing_thumbs:
+                                    break
+                        if missing_thumbs:
+                            typer.echo(nomerge_format)
                 else:
                     if verbose:
-                        print(failure_format)
+                        typer.echo(failure_format)
     except StopProgram as e:
-        print(stopped_format)
+        typer.echo(stopped_format)
     finally:
         if sys.platform != 'darwin':
             listener.stop()
