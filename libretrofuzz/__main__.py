@@ -454,7 +454,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 #if the user used filters, filter everything that doesn't match any of the globs
                 if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
                     continue
-                
+
                 #to simplify this code, the forbidden characters are replaced twice,
                 #on the string that is going to be the filename and the modified string copy of that that is going to be matched.
                 #it could be done only once, but that would require separating the colon character for subtitle matching,
@@ -498,16 +498,23 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 nomerge_format = f'{zero_format}{typer.style("Nomerge", fg=typer.colors.BLUE, bold=True)}: {name_format}'
                 if thumbnail and ( i_max >= CONFIDENCE or nofail ):
                     #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
-                    #Now I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
-                    #This is just for the destination, not the source.
+                    #I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
                     thumb_dir = Path(thumbnails_directory,destination)
-                    #if no filtering and merge is turned off, only download if all thumbnail types are missing
                     allow = True
                     if not filters and nomerge:
-                        def thumbcheck(thumb_path):
-                            p = Path(thumb_dir, thumb_path, name+'.png')
-                            return not p.exists() or os.path.getsize(p) == 0
-                        allow = all(map(thumbcheck, thumbs._fields))
+                        #to implement no-merge you have to disable downloads on 'at least one' thumbnail (including user added ones)
+                        missing_thumbs = 0
+                        missing_server_thumbs = 0
+                        for dirname in thumbs._fields:
+                            p = Path(thumb_dir, dirname, name+'.png')
+                            if not p.exists():
+                                missing_thumbs += 1
+                                if thumbnail in getattr(thumbs, dirname):
+                                    missing_server_thumbs += 1
+                        allow = missing_thumbs == 3
+                        #despite the above, print only for when it would download if it was allowed, otherwise it is confusing
+                        if not allow and missing_server_thumbs > 0:
+                            typer.echo(nomerge_format)
                     if allow:
                         downloaded_list = []
                         try:
@@ -517,14 +524,9 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                                 tmp_parent = Path(tmpdir, dirname)
                                 temp = Path(tmp_parent, name + '.png')
                                 
-                                #defective file, do this before checking if you have something to download
-                                #should probably check if it is a valid png instead or in addition.
-                                if real.exists() and os.path.getsize(real) == 0:
-                                    real.unlink(missing_ok=True)
-                                
                                 #something to download
-                                thumbmap = getattr(thumbs, dirname)
-                                if thumbnail in thumbmap:
+                                thumbset = getattr(thumbs, dirname)
+                                if thumbnail in thumbset:
                                     os.makedirs(parent, exist_ok=True)
                                     os.makedirs(tmp_parent, exist_ok=True)
                                     
@@ -538,7 +540,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                                         nonlocal retry_count
                                         with open(temp, 'w+b') as f:
                                             try:
-                                                with requests.get(thumbmap[thumbnail], timeout=15, stream=True) as r:
+                                                with requests.get(thumbset[thumbnail], timeout=15, stream=True) as r:
                                                     length = int(r.headers.get('Content-Length'))
                                                     with tqdm.wrapattr(r.raw, 'read', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as raw:
                                                         while True:
@@ -577,21 +579,8 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                             shutil.move(temp, real)
                         if downloaded_list:
                             typer.echo(success_format)
-                    else:
-                        #this means that this game wasn't allowed to download because it doesn't have all thumbnails missing and nomerge was on
-                        #only print this if downloaded thumbnails aren't all thumbnails for the game in the server (note, can be less than 3)
-                        missing_thumbs = False
-                        for server_set_name in thumbs._fields:
-                            server_set = getattr(thumbs, server_set_name)
-                            if thumbnail in server_set:
-                                missing_thumbs = not Path(thumb_dir, server_set_name, name+'.png').is_file()
-                                if missing_thumbs:
-                                    break
-                        if missing_thumbs:
-                            typer.echo(nomerge_format)
-                else:
-                    if verbose:
-                        typer.echo(failure_format)
+                elif verbose:
+                    typer.echo(failure_format)
     except StopProgram as e:
         typer.echo(stopped_format)
     finally:
