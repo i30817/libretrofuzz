@@ -443,7 +443,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         listener.wait()
     try:
         #preprocess data so it's not redone every loop iteration.
-        
+        title_scorer = TitleScorer()
         #normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
         norm = nosubtitle_normalizer if nosubtitle else normalizer
         #we choose the highest similarity of all 3 directories, since no mixed matches are allowed
@@ -494,7 +494,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 nameaux = norm(nameaux)
                 
                 #operate on cache (to speed up by not applying normalization every iteration)
-                norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=TitleScorer(),processor=None,score_cutoff=None) or (None, 0, None)
+                norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=title_scorer,processor=None,score_cutoff=None) or (None, 0, None)
                 
                 #formating legos
                 zero_format    = '  0 ' if verbose else ''
