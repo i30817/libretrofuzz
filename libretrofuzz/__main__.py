@@ -57,7 +57,7 @@ if sys.platform == 'win32': #this is for 64 bits too
     if not CONFIG.exists():
         CONFIG = Path(r'C:/RetroArch/retroarch.cfg')
         if not CONFIG.exists():
-            print('Portable install default location config not found, trying with APPDATA location')
+            typer.echo('Portable install default location config not found, trying with APPDATA location')
             var = os.getenv('APPDATA')
             if var:
                 CONFIG = Path(var, 'RetroArch', 'retroarch.cfg')
@@ -106,6 +106,32 @@ class RzipReader(object):
             else:
                 yield file
 
+#The main part of the program, what orders titles to be 'more similar' or less to the local labels (after the normalization)
+class TitleScorer(object):
+    def __init__(self):
+        #rapidfuzz says to use range 0-100, but this doesn't (it's much easier that way), so it uses internal api to prevent a possible early exit at == 100
+        self._RF_ScorerPy = { 'get_scorer_flags': lambda **kwargs: {'optimal_score': 200, 'worst_score': 0, 'flags': (1 << 6)} }
+
+    def __call__(self, s1, s2, processor=None, score_cutoff=None):
+        #combine the token set ratio scorer with a common prefix heuristic to give priority to longer similar names
+        #This helps prevents false positives for shorter strings
+        #which token set ratio is prone to because it sets score to 100
+        #if one string words are completely on the other
+        prefix = len(os.path.commonprefix([s1, s2]))
+        if prefix <= 2 and len(s1) != len(s2):
+            #ideally this branch wouldn't exist, but since many games do not have
+            #images, they get caught up on a short title '100' from token_set_ratio
+            #without the real title to win the similarity+prefix heuristic
+            #this removes many false positives and causes few false negatives.
+            return 0
+        else:
+            if s1 == s2:
+                return 200
+            #extractOne calls this multiple times with the score cutoff increased by the 'last best' which causes a 
+            #false negative because token_set_ratio has a behavior where if the score < score_cutoff it returns 0.
+            similarity = fuzz.token_set_ratio(s1,s2,processor=None,score_cutoff=0)
+            return similarity + prefix
+
 #keyboard listener, to interrupt downloads or stop the program
 class StopDownload(Exception):
     def __init__(self):
@@ -127,7 +153,8 @@ def press(key):
 def release(key):
     global counter
     with stop_lock:
-        counter -= 1
+        #it's possible to 'start listening' with a depressed key...
+        counter = max(0, counter - 1)
 def checkDownload():
     global counter
     global escape
@@ -395,25 +422,6 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         t = t.lower().replace(f'{s}and{s}',  f'{s}')
         return t.strip()
     
-    def myscorer(s1, s2, processor=None, score_cutoff=None):
-        similarity = fuzz.token_set_ratio(s1,s2,processor=processor,score_cutoff=score_cutoff)
-        #combine the token set ratio scorer with a common prefix heuristic to give priority to longer similar names
-        #This helps prevents false positives for shorter strings
-        #which token set ratio is prone to because it sets score to 100
-        #if one string words are completely on the other
-        
-        prefix = len(os.path.commonprefix([s1, s2]))
-        if prefix <= 2 and len(s1) != len(s2):
-            #ideally this branch wouldn't exist, but since many games do not have
-            #images, they get caught up on a short title '100' from token_set_ratio
-            #without the real title to win the similarity+prefix heuristic
-            #this removes many false positives and causes few false negatives.
-            return 0
-        else:
-            if s1 == s2:
-                return 200
-            return similarity + prefix
-    
     def nosubtitle_aux(t,subtitle_marker=' - '):
         #Ignore metadata (but do not delete) and get the string before it
         no_meta = re.search(r'(^[^[({]*)', t)
@@ -426,23 +434,23 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     
     def nosubtitle_normalizer(t):
         return normalizer(nosubtitle_aux(t))
-    
-    #preprocess data so it's not redone every loop iteration.
-    
-    #normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
-    norm = nosubtitle_normalizer if nosubtitle else normalizer
-    #we choose the highest similarity of all 3 directories, since no mixed matches are allowed
-    remote_names = set()
-    remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
-    #turn into a dict, original key and normalized value
-    remote_names = { x : norm(x) for x in remote_names }
+  
     #this allows to skip downloads or non-ctrl-x early exit but suppresses stdin input to make the printing predictable
     if sys.platform != 'darwin': #macos x requires sudo to listen to the keyboard, so no thanks.
-        print(f'Press escape to quit, and any other key to skip a game\'s thumbnails download.')
+        typer.echo(f'Press escape to quit, and any other key to skip a game\'s thumbnails download.')
         listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
         listener.start()
         listener.wait()
     try:
+        #preprocess data so it's not redone every loop iteration.
+        
+        #normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
+        norm = nosubtitle_normalizer if nosubtitle else normalizer
+        #we choose the highest similarity of all 3 directories, since no mixed matches are allowed
+        remote_names = set()
+        remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
+        #turn into a set, original key and normalized value
+        remote_names = { x : norm(x) for x in remote_names }
         #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
         #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
         #it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
@@ -486,7 +494,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 nameaux = norm(nameaux)
                 
                 #operate on cache (to speed up by not applying normalization every iteration)
-                norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=myscorer,processor=None,score_cutoff=None) or (None, 0, None)
+                norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=TitleScorer(),processor=None,score_cutoff=None) or (None, 0, None)
                 
                 #formating legos
                 zero_format    = '  0 ' if verbose else ''
@@ -554,7 +562,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                                                 retry_count = retry_count - 1
                                                 downloaded = False
                                                 if retry_count == 0:
-                                                    print(f'Exception: {e}', file=sys.stderr)
+                                                    typer.echo(f'Exception: {e}', err=True)
                                             finally:
                                                 if downloaded:
                                                     downloaded_list.append((temp, real))
