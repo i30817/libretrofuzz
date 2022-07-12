@@ -113,10 +113,6 @@ class TitleScorer(object):
         self._RF_ScorerPy = { 'get_scorer_flags': lambda **kwargs: {'optimal_score': 200, 'worst_score': 0, 'flags': (1 << 6)} }
 
     def __call__(self, s1, s2, processor=None, score_cutoff=None):
-        #combine the token set ratio scorer with a common prefix heuristic to give priority to longer similar names
-        #This helps prevents false positives for shorter strings
-        #which token set ratio is prone to because it sets score to 100
-        #if one string words are completely on the other
         prefix = len(os.path.commonprefix([s1, s2]))
         if prefix <= 2 and len(s1) != len(s2):
             #ideally this branch wouldn't exist, but since many games do not have
@@ -127,9 +123,14 @@ class TitleScorer(object):
         else:
             if s1 == s2:
                 return 200
-            #extractOne calls this multiple times with the score cutoff increased by the 'last best' which causes a 
-            #false negative because token_set_ratio has a behavior where if the score < score_cutoff it returns 0.
+            #score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
+            #1. the caller of this, extractOne passes the 'current best score' as score_cutoff
+            #2. the token_set_ratio function returns 0 if the calculated score < score_cutoff
+            #3. 'current best score' includes the prefix, which this call can't include in 2.
             similarity = fuzz.token_set_ratio(s1,s2,processor=None,score_cutoff=0)
+            #Combine the scorer with a common prefix heuristic to give priority to longer similar
+            #names, this helps prevents false positives for shorter strings which token set ratio
+            #is prone because it sets score to 100 if one string words are completely on the other.
             return similarity + prefix
 
 #keyboard listener, to interrupt downloads or stop the program
