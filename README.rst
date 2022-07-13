@@ -27,7 +27,7 @@ Because of this increased risk of false positives with options, the default is t
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
 
 Example:
-  ``libretro-fuzz --no-subtitle --rmspaces --before '_' --reset '[Ii]shar*'``
+  ``libretro-fuzz --no-subtitle --crmspaces --before '_' --reset '[Ii]shar*'``
   
   The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 

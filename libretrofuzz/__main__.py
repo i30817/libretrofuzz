@@ -226,7 +226,7 @@ False positives will then mostly be from the thumbnail server not having a singl
 
 Example:
 
- libretro-fuzz --no-subtitle --rmspaces --before '_' --reset '[Ii]shar*'
+ libretro-fuzz --no-subtitle --crmspaces --before '_' --reset '[Ii]shar*'
 
  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
