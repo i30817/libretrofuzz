@@ -24,6 +24,7 @@ import zlib
 import threading
 import collections
 import shutil
+import unicodedata
 from pynput import keyboard
 from pynput.keyboard import Key
 from rapidfuzz import process, fuzz
@@ -189,8 +190,6 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
         nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
         hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
         nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores subtitles after \' - \' or \': \' from both the server names and labels. Best used with --reset, unless all of the playlist has no subtitles. Note, \':\' can not occur in server filenames, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), you should try first without this option.'),
-        rmspaces: bool = typer.Option(False, '--rmspaces', help='Remove spaces in normalization, for playlists with no spaces in the labels.'),
-        crmspaces: bool = typer.Option(False, '--crmspaces', help='Like --rmspaces, but capitalize words first letter.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and remote names in output (score >= 100 is succesful).')
     ):
@@ -199,15 +198,15 @@ Fuzzy Retroarch thumbnail downloader
 
 In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
 
-This program, for each game label on a playlist, downloads the 'most similar' image to display the image in retroarch.
+This program, for each game label on a playlist, downloads the most similar name image to display in retroarch.
 
 It has several options to fit unusual labels, but you can just run it to get the most restrictive default. It will ask for the CFG, playlist and system if they're not provided.
 
 Example:
 
- libretro-fuzz --no-subtitle --crmspaces --before '_'
+ libretro-fuzz --no-subtitle --before '_'
 
- The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles, capitalize all the words, don't have spaces, and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
+ The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
 
 Note that the system name you download from doesn't have to be the same as the playlist name.
 
@@ -226,7 +225,7 @@ False positives will then mostly be from the thumbnail server not having a singl
 
 Example:
 
- libretro-fuzz --no-subtitle --crmspaces --before '_' --reset '[Ii]shar*'
+ libretro-fuzz --no-subtitle --before '_' --reset '[Ii]shar*'
 
  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
@@ -264,7 +263,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     
     if not playlist: #ask user for which
         displayplaylists = list(map(os.path.basename, PLAYLISTS))
-        playlist, _ = pick(displayplaylists, 'Which playlist do you want to download thumbnails for?')
+        playlist, _ = pick(displayplaylists, 'Which playlist do you want to download thumbnails for?')[0]
             
     try:
         with requests.get('https://thumbnails.libretro.com/', timeout=30, stream=True) as r:
@@ -283,7 +282,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
             default_i = SYSTEMS.index(playlist[:-4]) #start with the playlist system selected, if any
         except ValueError:
              default_i = 0
-        system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)
+        system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)[0]
     
     playlist = Path(playlist_dir, playlist)
     
@@ -335,30 +334,61 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         for nextchar in to_be_replaced:
             our_str = our_str.replace(nextchar, replace_with)
         return our_str
+    
+    #these two methods will be unnecessary once at python 3.9 is widespread in distros (ie: after ubuntu 20.04 is not supported)
+    def removesuffix(name: str, suf: str):
+        if name.endswith(suf):
+            return name[:-len(suf)]
+        return name
 
+    def removeprefix(name: str, pre: str):
+        if name.startswith(pre):
+            return name[len(pre):]
+        return name
+    
     def normalizer(t):
         if nometa:
             t = removeparenthesis(t,'(',')')
         if not hack:
             t = removeparenthesis(t,'[',']')
-        #change all metacharacters to space (spaces will be uniquified or removed next)
-        t = replacemany(t, '_()[]{}-', ' ')
-        #although the remote names always have spaces, the local names may not have
-        #so in order for normalization/removal of tokens with spaces to work on 'both sides'
-        #we should normalize the spaces right away in both sides, then specialize the tokens
-        if rmspaces:
-            t = ''.join(t.split())
-            s = ''
-        elif crmspaces: #string.capwords is almost what i want except it lowercases the rest of the words
-            words = []
-            for word in t.split():
-                words.append(word[0].upper())
-                words.append(word[1:])
-            t = ''.join(words)
-            s = ''
-        else:
-            t = ' '.join(t.split())
-            s = ' '
+        #change all common ascci symbol characters we aren't going to use after this (, and ')
+        t = replacemany(t, '_()[]{}-.!?#"', ' ')
+        #strips just because the user may have made a mistake naming the source
+        #(or the replacement above introduce boundary spaces)
+        t = t.strip()
+        #beginning and end definite articles in several european languages (people move them)
+        #make sure we're only removing the capitalized start and end forms with spaces
+        t = removesuffix(t, ', The')
+        t = removeprefix(t, 'The ')
+        t = removesuffix(t, ', Los')
+        t = removeprefix(t, 'Los ')
+        t = removesuffix(t, ', Las')
+        t = removeprefix(t, 'Las ')
+        t = removesuffix(t, ', Les')
+        t = removeprefix(t, 'Les ')
+        t = removesuffix(t, ', Le')
+        t = removeprefix(t, 'Le ')
+        t = removesuffix(t, ', La')
+        t = removeprefix(t, 'La ')
+        t = removesuffix(t, ', L\'')
+        #L' sometimes ommits the space so always remove L' at the start even without space
+        t = removeprefix(t, 'L\'')  #if there is a extra space the next join will remove it
+        t = removesuffix(t, ', Der')
+        t = removeprefix(t, 'Der ')
+        t = removesuffix(t, ', Die')
+        t = removeprefix(t, 'Die ')
+        t = removesuffix(t, ', Das')
+        t = removeprefix(t, 'Das ')
+        t = removesuffix(t, ', El')
+        t = removeprefix(t, 'El ')
+        t = removesuffix(t, ', Os')
+        t = removeprefix(t, 'Os ')
+        t = removesuffix(t, ', As')
+        t = removeprefix(t, 'As ')
+        t = removesuffix(t, ', O')
+        t = removeprefix(t, 'O ')
+        t = removesuffix(t, ', A')
+        t = removeprefix(t, 'A ')
         #Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
         #If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
         #Problem only occurs if they're different and would occur even without this transformation.
@@ -382,46 +412,19 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         t = t.replace('IX',   '9')
         t = t.replace('X',   '10')
         t = t.replace('I',    '1')
-        #beginning definite articles in several european languages
-        #with two forms because people keep moving them to the end
-        t = t.replace(f',{s}The', '')
-        t = t.replace(f'The{s}',  '')
-        t = t.replace(f',{s}Le', '')
-        t = t.replace(f'Le{s}',  '')
-        t = t.replace(f',{s}La', '')
-        t = t.replace(f'La{s}',  '')
-        t = t.replace(f',{s}L\'', '')
-        #as a abbreviation these sometimes doesn't have space at the start even without --rmspaces
-        t = t.replace(f'L\' ',  '')
-        t = t.replace(f'L\'',  '')
-        t = t.replace(f',{s}Les', '')
-        t = t.replace(f'Les{s}',  '')
-        t = t.replace(f',{s}Der', '')
-        t = t.replace(f'Der{s}',  '')
-        t = t.replace(f',{s}Die', '')
-        t = t.replace(f'Die{s}',  '')
-        t = t.replace(f',{s}Das', '')
-        t = t.replace(f'Das{s}',  '')
-        t = t.replace(f',{s}El', '')
-        t = t.replace(f'El{s}',  '')
-        t = t.replace(f',{s}Los', '')
-        t = t.replace(f'Los{s}',  '')
-        t = t.replace(f',{s}Las', '')
-        t = t.replace(f'Las{s}',  '')
-        t = t.replace(f',{s}O',  '')
-        t = t.replace(f'O{s}',   '')
-        t = t.replace(f',{s}A',  '')
-        t = t.replace(f'A{s}',   '')
-        t = t.replace(f',{s}Os', '')
-        t = t.replace(f'Os{s}',  '')
-        t = t.replace(f',{s}As', '')
-        t = t.replace(f'As{s}',  '')
-        #remove all punctuation, '&' is already a forbidden character so it was replaced by '_' then ' ' or '' above
-        t = replacemany(t, ',.!?#\'', '')
-        #this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works (spaces optional).
-        #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ' '
-        t = t.lower().replace(f'{s}and{s}',  f'{s}')
-        return t.strip()
+        #remove the symbols used in the definite article normalization
+        t = replacemany(t, ',\'', '')
+        #normalize case
+        t = t.lower()
+        #this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
+        #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
+        t = t.replace(' and ',  '')
+        #although all names have spaces (now), the local names may have weird spaces,
+        #so to equalize them after the space dependent checks (this also strips)
+        t = ''.join(t.split())
+        #remove diacritics (does nothing to asian languages diacritics, only for 2 to 1 character combinations)
+        t = u''.join([c for c in unicodedata.normalize('NFKD', t) if not unicodedata.combining(c)])
+        return t
     
     def nosubtitle_aux(t,subtitle_marker=' - '):
         #Ignore metadata (but do not delete) and get the string before it
@@ -450,7 +453,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         #we choose the highest similarity of all 3 directories, since no mixed matches are allowed
         remote_names = set()
         remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
-        #turn into a set, original key and normalized value
+        #turn into a set, original key and normalized value. Remote names always have space if they need it
         remote_names = { x : norm(x) for x in remote_names }
         #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
         #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
@@ -491,7 +494,16 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                 #only the local names should have forbidden characters
                 name = re.sub(forbidden, '_', name )
                 nameaux = re.sub(forbidden, '_', nameaux )
-                #unlike the server thumbnails, this wasn't done yet
+                
+                #make sure that local labels without any space and 'weird' capitalization get
+                #split into spaces to normalize definite articles in normalization
+                #(CamelCaseNames for labels are common when there are no spaces).
+                #note that metadata like (US) turns into ( U S), since the spaces will get removed
+                #after the check for definite articles, before being compared, it doesn't matter
+                if ' ' not in nameaux:
+                    nameaux = ' '.join([s for s in re.split('([A-Z][^A-Z]*)', nameaux) if s])
+                    
+                #unlike the server thumbnails, normalization wasn't done yet
                 nameaux = norm(nameaux)
                 
                 #operate on cache (to speed up by not applying normalization every iteration)

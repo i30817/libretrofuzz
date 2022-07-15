@@ -3,14 +3,14 @@
 
 In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
 
-This program, for each game label on a playlist, downloads the 'most similar' image to display the image in retroarch.
+This program, for each game label on a playlist, downloads the most similar name image to display in retroarch.
 
 It has several options to fit unusual labels, but you can just run it to get the most restrictive default. It will ask for the CFG, playlist and system if they're not provided.
 
 Example:
- ``libretro-fuzz --no-subtitle --crmspaces --before '_'``
+ ``libretro-fuzz --no-subtitle --before '_'``
  
- The Retroplay WHDLoad set has labels like ``MonkeyIsland2_v1.3_0020`` after a manual scan. These labels don't have subtitles, capitalize all the words, don't have spaces, and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name ``Commodore - Amiga`` to download from the libretro amiga thumbnails.
+ The Retroplay WHDLoad set has labels like ``MonkeyIsland2_v1.3_0020`` after a manual scan. These labels don't have subtitles and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name ``Commodore - Amiga`` to download from the libretro amiga thumbnails.
 
 Note that the system name you download from doesn't have to be the same as the playlist name.
 
@@ -27,7 +27,7 @@ Because of this increased risk of false positives with options, the default is t
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
 
 Example:
-  ``libretro-fuzz --no-subtitle --crmspaces --before '_' --reset '[Ii]shar*'``
+  ``libretro-fuzz --no-subtitle --before '_' --reset '[Ii]shar*'``
   
   The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
@@ -62,9 +62,6 @@ Options:
                         can not occur in server filenames, so if the server
                         has ``Name_ subtitle.png`` and not ``Name - subtitle.png``
                         (uncommon), you should try first without this option.
-  --rmspaces            Remove spaces in normalization, for playlists with no
-                        spaces in the labels.
-  --crmspaces           Like --rmspaces, but capitalize words first letter.
   --before TEXT         Use only the part of the label before TEXT to match.
                         TEXT may not be inside of brackets of any kind, may
                         cause false positives but some labels do not have
