@@ -453,7 +453,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         #we choose the highest similarity of all 3 directories, since no mixed matches are allowed
         remote_names = set()
         remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
-        #turn into a set, original key and normalized value. Remote names always have space if they need it
+        #turn into a set, original key and normalized value.
         remote_names = { x : norm(x) for x in remote_names }
         #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
         #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
