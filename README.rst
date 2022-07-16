@@ -27,7 +27,7 @@ Because of this increased risk of false positives with options, the default is t
 False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
 
 Example:
-  ``libretro-fuzz --no-subtitle --before '_' --reset '[Ii]shar*'``
+  ``libretro-fuzz --no-subtitle --before '_' --filter '[Ii]shar*'``
   
   The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
@@ -43,31 +43,30 @@ Options:
                         matching. If not provided, asked from the user.
   --system NAME         Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
-  --reset FILTER        Restricts downloads to game labels globs - not paths -
+  --filter GLOB         Restricts downloads to game labels globs - not paths -
                         in the playlist, can be used multiple times and
-                        matches reset thumbnails, --reset '*' downloads all.
+                        matches reset thumbnails, --filter '*' downloads all.
   --no-merge            Disables missing thumbnails download for a label if
                         there is at least one in cache to avoid mixing
                         thumbnails from different server directories on
-                        repeated calls. No effect if called with --reset.
-  --no-fail             Download any score. Best used with --reset as filter.
+                        repeated calls. No effect if called with --filter.
+  --no-fail             Download any score. To retry or restrict use --filter.
   --no-meta             Ignores () delimited metadata and may cause false
                         positives. Forced with --before.
   --hack                Matches [] delimited metadata and may cause false
                         positives, Best used if the hack has thumbnails.
                         Ignored with --before.
-  --no-subtitle         Ignores subtitles after ' - ' or ': ' from both the
-                        server names and labels. Best used with --reset,
-                        unless all of the playlist has no subtitles. Note, ':'
-                        can not occur in server filenames, so if the server
-                        has ``Name_ subtitle.png`` and not ``Name - subtitle.png``
-                        (uncommon), you should try first without this option.
+  --no-subtitle         Remove subtitle after ' - ' or ': ' for mismatching
+                        server names and labels. ':' can't occur in server
+                        filenames, so if the server has 'Name_ subtitle.png'
+                        and not 'Name - subtitle.png' (uncommon), this option
+                        doesn't help. To retry or restrict use --filter.
   --before TEXT         Use only the part of the label before TEXT to match.
                         TEXT may not be inside of brackets of any kind, may
                         cause false positives but some labels do not have
                         traditional separators. Forces metadata to be ignored.
   --verbose             Shows the failures, score and normalized local and
-                        remote names in output (score >= 100 is succesful).
+                        server names in output (score >= 100 is succesful).
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or
                         customize the installation.

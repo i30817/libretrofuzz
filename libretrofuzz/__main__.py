@@ -184,14 +184,14 @@ def getDirectoryPath(cfg: Path, directory: str):
 def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
-        filters: Optional[List[str]] = typer.Option(None, '--reset', metavar='FILTER', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --reset \'*\' downloads all.'),
-        nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --reset.'),
-        nofail: bool = typer.Option(False, '--no-fail', help='Download any score. Best used with --reset as filter.'),
+        filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
+        nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
+        nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To retry or restrict use --filter.'),
         nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
         hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
-        nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores subtitles after \' - \' or \': \' from both the server names and labels. Best used with --reset, unless all of the playlist has no subtitles. Note, \':\' can not occur in server filenames, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), you should try first without this option.'),
+        nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Remove subtitle after \' - \' or \': \' for mismatching server names and labels. \':\' can\'t occur in server filenames, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help. To retry or restrict use --filter.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
-        verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and remote names in output (score >= 100 is succesful).')
+        verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
     """
 Fuzzy Retroarch thumbnail downloader
@@ -225,7 +225,7 @@ False positives will then mostly be from the thumbnail server not having a singl
 
 Example:
 
- libretro-fuzz --no-subtitle --before '_' --reset '[Ii]shar*'
+ libretro-fuzz --no-subtitle --before '_' --filter '[Ii]shar*'
 
  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
@@ -588,7 +588,7 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
                                         while not downloaded and not real.exists() and retry_count > 0:
                                             download()
                                 elif filters:
-                                    #nothing to download but we want to remove images that may be there in the case of --reset.
+                                    #nothing to download but we want to remove images that may be there in the case of --filter.
                                     real.unlink(missing_ok=True)
                         except StopProgram as e:
                             typer.echo(cancel_format)
