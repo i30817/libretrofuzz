@@ -50,17 +50,17 @@ Options:
                         there is at least one in cache to avoid mixing
                         thumbnails from different server directories on
                         repeated calls. No effect if called with --filter.
-  --no-fail             Download any score. To retry or restrict use --filter.
+  --no-fail             Download any score. To restrict or retry use --filter.
   --no-meta             Ignores () delimited metadata and may cause false
                         positives. Forced with --before.
   --hack                Matches [] delimited metadata and may cause false
                         positives, Best used if the hack has thumbnails.
                         Ignored with --before.
-  --no-subtitle         Remove subtitle after ' - ' or ': ' for mismatching
-                        server names and labels. ':' can't occur in server
-                        filenames, so if the server has 'Name_ subtitle.png'
-                        and not 'Name - subtitle.png' (uncommon), this option
-                        doesn't help. To retry or restrict use --filter.
+  --no-subtitle         Remove subtitle after ' - ' or ': ' for mismatched
+                        labels and server names. ':' can't occur in server
+                        names, so if the server has 'Name\_ subtitle.png' and
+                        not 'Name - subtitle.png' (uncommon), this option
+                        doesn't help. To restrict or retry use --filter.
   --before TEXT         Use only the part of the label before TEXT to match.
                         TEXT may not be inside of brackets of any kind, may
                         cause false positives but some labels do not have
