@@ -270,7 +270,7 @@ six = ">=1.10.0"
 
 [[package]]
 name = "rapidfuzz"
-version = "2.1.3"
+version = "2.1.4"
 description = "rapid fuzzy string matching"
 category = "main"
 optional = false

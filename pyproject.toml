@@ -18,7 +18,8 @@ tqdm = "^4.64.0"
 pynput = "^1.7.6"
 
 [tool.poetry.scripts]
-libretro-fuzz = 'libretrofuzz.__main__:main'
+libretro-fuzz = 'libretrofuzz.__main__:fuzzsingle'
+libretro-fuzzall = 'libretrofuzz.__main__:fuzzall'
 
 [tool.poetry.urls]
 "homepage" = 'https://github.com/i30817/libretrofuzz'

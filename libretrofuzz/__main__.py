@@ -39,7 +39,56 @@ from struct import unpack
 import typer
 import requests
 
+###########################################
+################ README ###################
+###########################################
 
+README = """
+Fuzzy Retroarch thumbnail downloader
+
+In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
+
+These programs, for each game label on a playlist, download the most similar name image to display in retroarch.
+
+There are several options to fit unusual labels, but you can just run them to get the most restrictive default.
+
+If you use libretro-fuzz, it will ask for the playlist and system if they're not provided.
+
+If you use libretro-fuzzall, it will attempt to match the playlist names to the server system names, and will skip custom playlist names.
+
+Besides those differences, if no retroarch.cfg is provided, both programs try to use the default retroarch.cfg.
+
+Example:
+
+ libretro-fuzz --no-subtitle --before '_'
+
+ The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
+
+Note that the system name you download from doesn't have to be the same as the playlist name.
+
+If the thumbnail server contains games from multiple releases for the system (like 'ScummVM'), be careful using extra options since it is easy to end up with 'slightly wrong' covers.
+
+Example:
+
+ libretro-fuzz --no-meta --no-merge
+
+ After downloading 'ScummVM' thumbnails (and not before, to minimize false positives), we'd like to try to pickup a few covers from 'DOS' thumbnails and skip download if there a risk of mixing thumbnails from 'DOS' and 'ScummVM' for a single game.
+ Choose the ScummVM playlist and DOS system name, and covers would be downloaded with risk of false positives: CD vs floppy covers, USA vs Japan covers, or another platform vs DOS.
+
+Because of this increased risk of false positives with options, the default is to count everything except hack metadata as part of the match, and the default pre-selected system name to be the same as the playlist name, which is safest.
+
+False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
+
+Example:
+
+ libretro-fuzz --no-subtitle --before '_' --filter '[Ii]shar*'
+
+ The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
+
+To update this program with pip installed, type:
+
+pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/master.zip
+    """
 
 
 ###########################################
@@ -106,6 +155,18 @@ class RzipReader(object):
                     yield f
             else:
                 yield file
+
+#uses the class above to read either a normal json or a compressed json playlist then return the list of (label,db_name) tuples
+def readPlaylist(playlist: Path):
+    names = []
+    with RzipReader(playlist).open() as f:
+        data = json.load(f)
+        for r in data['items']:
+            assert 'label' in r and r['label'].strip() != '', f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no label'
+            assert 'db_name' in r and r['db_name'].endswith('.lpl'), f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no valid db_name'
+            #add the label name and the db name (it's a playlist name, minus the extension '.lpl')
+            names.append( (r['label'], r['db_name'][:-4]) )
+    return names
 
 #The main part of the program, what orders titles to be 'more similar' or less to the local labels (after the normalization)
 class TitleScorer(object):
@@ -181,7 +242,7 @@ def getDirectoryPath(cfg: Path, directory: str):
     dirp = os.path.expanduser(configParser['DUMMY'][directory].strip('\t ').strip('"'))
     return Path(dirp)
 
-def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
+def mainfuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
@@ -193,78 +254,87 @@ def mainaux(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg f
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
-    """
-Fuzzy Retroarch thumbnail downloader
-
-In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
-
-This program, for each game label on a playlist, downloads the most similar name image to display in retroarch.
-
-It has several options to fit unusual labels, but you can just run it to get the most restrictive default. It will ask for the CFG, playlist and system if they're not provided.
-
-Example:
-
- libretro-fuzz --no-subtitle --before '_'
-
- The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
-
-Note that the system name you download from doesn't have to be the same as the playlist name.
-
-If the thumbnail server contains games from multiple releases for the system (like 'ScummVM'), be careful using extra options since it is easy to end up with 'slightly wrong' covers.
-
-Example:
-
- libretro-fuzz --no-meta --no-merge
-
- After downloading 'ScummVM' thumbnails (and not before, to minimize false positives), we'd like to try to pickup a few covers from 'DOS' thumbnails and skip download if there a risk of mixing thumbnails from 'DOS' and 'ScummVM' for a single game.
- Choose the ScummVM playlist and DOS system name, and covers would be downloaded with risk of false positives: CD vs floppy covers, USA vs Japan covers, or another platform vs DOS.
-
-Because of this increased risk of false positives with options, the default is to count everything except hack metadata as part of the match, and the default pre-selected system name to be the same as the playlist name, which is safest.
-
-False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
-
-Example:
-
- libretro-fuzz --no-subtitle --before '_' --filter '[Ii]shar*'
-
- The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
-
-To update this program with pip installed, type:
-
-pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/master.zip
-    """
+    f"""{README}"""
+    #the many lethal errors tested at the beginning of this
     if not cfg or not cfg.is_file():
         typer.echo(f'Invalid Retroarch cfg file: {cfg}')
         raise typer.Abort()
-    
     thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
     if not thumbnails_directory.is_dir():
         typer.echo(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
         raise typer.Abort()
-    
     playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
-    
     if not playlist_dir.is_dir():
         typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
         raise typer.Abort()
-    
     PLAYLISTS = list(playlist_dir.glob('./*.lpl'))
-    
     if not PLAYLISTS:
         typer.echo(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
         raise typer.Abort()
-    
     if playlist and not playlist.endswith('.lpl'):
         playlist = playlist + '.lpl'
-    
     if playlist and Path(playlist_dir, playlist) not in PLAYLISTS:
         typer.echo(f'Unknown user provided playlist: {playlist}')
         raise typer.Abort()
+    try:
+        with requests.get('https://thumbnails.libretro.com/', timeout=30, stream=True) as r:
+            soup = BeautifulSoup(r.text, 'html.parser')
+        SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
+    except RequestException as err:
+        typer.echo(f'Could not get the remote thumbnail system names')
+        raise typer.Abort()
+    if system and system not in SYSTEMS:
+        typer.echo(f'The user provided system name {system} does not match any remote thumbnail system names')
+        raise typer.Abort()
     
-    if not playlist: #ask user for which
+    #ask user for these 2 arguments if they're still not set
+    if not playlist:
         displayplaylists = list(map(os.path.basename, PLAYLISTS))
         playlist, _ = pick(displayplaylists, 'Which playlist do you want to download thumbnails for?')[0]
-            
+    
+    if not system:
+        try:
+            #start with the playlist system selected, if any
+            default_i = SYSTEMS.index(playlist[:-4])
+        except ValueError:
+             default_i = 0
+        system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)[0]
+    
+    try:
+        names = readPlaylist(Path(playlist_dir, playlist))
+        typer.echo(typer.style(f"Fetching '{playlist}' from {system}", fg=typer.colors.BLUE, bold=True))
+        downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
+    except RuntimeError as err:
+        typer.echo(f'{playlist}: {err}')
+        raise typer.Abort()
+
+def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
+        filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
+        nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
+        nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
+        nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
+        hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
+        nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Remove subtitle after \' - \' or \': \' for mismatched labels and server names. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help. To restrict or retry use --filter.'),
+        before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
+        verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
+    ):
+    f"""{README}"""
+    #the many lethal errors tested at the beginning of this
+    if not cfg or not cfg.is_file():
+        typer.echo(f'Invalid Retroarch cfg file: {cfg}')
+        raise typer.Abort()
+    thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
+    if not thumbnails_directory.is_dir():
+        typer.echo(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
+        raise typer.Abort()
+    playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
+    if not playlist_dir.is_dir():
+        typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
+        raise typer.Abort()
+    PLAYLISTS = list(playlist_dir.glob('./*.lpl'))
+    if not PLAYLISTS:
+        typer.echo(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
+        raise typer.Abort()
     try:
         with requests.get('https://thumbnails.libretro.com/', timeout=30, stream=True) as r:
             soup = BeautifulSoup(r.text, 'html.parser')
@@ -273,48 +343,60 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         typer.echo(f'Could not get the remote thumbnail system names')
         raise typer.Abort()
     
-    if system and system not in SYSTEMS:
-        typer.echo(f'The user provided system name {system} does not match any remote thumbnail system names')
-        raise typer.Abort()
+    notInSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS if os.path.basename(playlist)[:-4] not in SYSTEMS]
+    for playlist, system in notInSystems:
+        typer.echo(typer.style(f"'{system}.lpl' custom playlist skipped", fg=typer.colors.RED, bold=True))
+        PLAYLISTS.remove(playlist)
+    inSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS ]
     
-    if not system:
+    there_was_a_error = []
+    for playlist, system in inSystems:
         try:
-            default_i = SYSTEMS.index(playlist[:-4]) #start with the playlist system selected, if any
-        except ValueError:
-             default_i = 0
-        system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)[0]
+            names = readPlaylist(playlist)
+            typer.echo(typer.style(f"Fetching '{system}.lpl' from '{system}'", fg=typer.colors.BLUE, bold=True))
+            downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
+        except RuntimeError as err:
+            there_was_a_error.append((playlist,err))
     
-    playlist = Path(playlist_dir, playlist)
-    
-    names = []
-    with RzipReader(playlist).open() as f:
-        data = json.load(f)
-        for r in data['items']:
-            assert 'label' in r and r['label'].strip() != '', f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no label'
-            assert 'db_name' in r and r['db_name'].endswith('.lpl'), f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no valid db_name'
-            #add the label name and the db name (it's a playlist name, minus the extension '.lpl')
-            names.append( (r['label'], r['db_name'][:-4]) )
-    
-    if len(names) == 0:
-        typer.echo(f'No names found in playlist {playlist}')
+    if there_was_a_error:
+        typer.echo('Playlists returned errors when trying to download thumbnails:')
+        for playlist, err in there_was_a_error:
+            typer.echo(f'{playlist}: {err}')
         raise typer.Abort()
+
+def downloader(names: [(str,str)],
+               system: str,
+               filters: Optional[List[str]],
+               nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: bool,
+               before: Optional[str],
+               thumbnails_directory: Path
+               ):
+    #not a error to pass a empty playlist
+    if len(names) == 0:
+        return
     
     lr_thumbs = 'https://thumbnails.libretro.com/'+quote(system) #then get the thumbnails from the system name
     thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Titles', 'Named_Snaps'])
     args = []
-    for tdir in ['/Named_Boxarts/', '/Named_Titles/', '/Named_Snaps/']:
-        lr_thumb = lr_thumbs+tdir
-        try:
+    try:
+        for tdir in ['/Named_Boxarts/', '/Named_Titles/', '/Named_Snaps/']:
+            lr_thumb = lr_thumbs+tdir
             with requests.get(lr_thumb, timeout=30, stream=True) as r:
-                soup = BeautifulSoup(r.text, 'html.parser')
-            l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
-        except RequestException as err:
-            l1 = {} #some do not have one or more of these
-        args.append(l1)
-    
-    if all(map(lambda x: len(x) == 0, args)):
-        typer.echo(f'No thumbnails found at {lr_thumbs}')
+                #this is ok, since some server system directories do not have all the subdirectories
+                if not r.ok and r.reason == 'Not Found':
+                    l1 = {}
+                elif r.ok:
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
+                else:
+                    r.raise_for_status()
+            args.append(l1)
+    except RequestException as err:
+        typer.echo(f'Could not get the remote thumbnail filenames')
         raise typer.Abort()
+    #not a error for the server to have no thumbnails for the system (unusual though)
+    if all(map(lambda x: len(x) == 0, args)):
+        return
     
     thumbs = thumbs._make( args )
     
@@ -438,10 +520,10 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
     
     def nosubtitle_normalizer(t):
         return normalizer(nosubtitle_aux(t))
-  
-    #this allows to skip downloads or non-ctrl-x early exit but suppresses stdin input to make the printing predictable
+    
+    #this allows to skip downloads and non-ctrl-c early exit but suppresses stdin input (including ctrl-c) to make the printing predictable
     if sys.platform != 'darwin': #macos x requires sudo to listen to the keyboard, so no thanks.
-        typer.echo(f'Press escape to quit, and any other key to skip a game\'s thumbnails download.')
+        typer.echo(typer.style(f'Press escape to quit, and any other key to skip a game\'s thumbnails download.', fg=typer.colors.BLUE, bold=True))
         listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
         listener.start()
         listener.wait()
@@ -608,9 +690,12 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
         if sys.platform != 'darwin':
             listener.stop()
 
-def main():
-    typer.run(mainaux)
-    return 0
+def fuzzsingle():
+    typer.run(mainfuzz)
+
+def fuzzall():
+    typer.run(mainfuzzall)
 
 if __name__ == "__main__":
-    typer.run(mainaux)
+    typer.echo('Please run libretro-fuzz or libretro-fuzzall instead of running the script directly.')
+    raise typer.Abort()

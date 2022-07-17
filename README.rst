@@ -3,9 +3,15 @@
 
 In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
 
-This program, for each game label on a playlist, downloads the most similar name image to display in retroarch.
+These programs, for each game label on a playlist, download the most similar name image to display in retroarch.
 
-It has several options to fit unusual labels, but you can just run it to get the most restrictive default. It will ask for the CFG, playlist and system if they're not provided.
+There are several options to fit unusual labels, but you can just run them to get the most restrictive default.
+
+If you use libretro-fuzz, it will ask for the playlist and system if they're not provided.
+
+If you use libretro-fuzzall, it will attempt to match the playlist names to the server system names, and will skip custom playlist names.
+
+Besides those differences, if no retroarch.cfg is provided, both programs try to use the default retroarch.cfg.
 
 Example:
  ``libretro-fuzz --no-subtitle --before '_'``
@@ -31,12 +37,21 @@ Example:
   
   The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
-
-**Usage: libretro-fuzz [OPTIONS] [CFG]**
+Usage:
+  **libretro-fuzz [OPTIONS] [CFG]**
+  
+  **libretro-fuzzall [OPTIONS] [CFG]**
+  
+  libretro-fuzzall doesn't have the --playlist and --system options
 
 Arguments:
   [CFG]  Path to the retroarch cfg file. If not default, asked from the user.
-  [default: ~/.config/retroarch/retroarch.cfg]
+  
+  [linux default:   ~/.config/retroarch/retroarch.cfg]
+  
+  [windows default: %APPDATA%/RetroArch/retroarch.cfg]
+  
+  [MacOS default:   ~/Library/Application Support/RetroArch/retroarch.cfg]
 
 Options:
   --playlist NAME       Playlist name with labels used for thumbnail fuzzy
