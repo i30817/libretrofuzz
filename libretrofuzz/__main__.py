@@ -35,6 +35,7 @@ from bs4 import BeautifulSoup
 import typer
 import httpx
 import questionary
+from questionary import Style
 from httpx import RequestError
 from tqdm import tqdm
 
@@ -311,8 +312,6 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         playlist = playlist + '.lpl'
     
     playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system)
-    
-    from questionary import Style
     
     custom_style = Style([
         ('answer', 'fg:green bold'),      # submitted answer text behind the question
