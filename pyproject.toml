@@ -10,12 +10,12 @@ repository = "https://github.com/i30817/libretrofuzz"
 [tool.poetry.dependencies]
 python = "^3.8"
 beautifulsoup4 = "^4.10.0"
+questionary = "^1.10.0"
 typer = {extras = ["all"], version = "^0.5.0"}
 rapidfuzz = "^2.0.8"
 httpx = "^0.23.0"
 tqdm = "^4.64.0"
 prompt_toolkit = "^3.0.30"
-questionary = "^1.10.0"
 
 [tool.poetry.scripts]
 libretro-fuzz = 'libretrofuzz.__main__:fuzzsingle'
