@@ -235,7 +235,7 @@ def checkEscape():
 def keyboard_exclusive_listener():
     #this allows to skip downloads and non-ctrl-c early exit but suppresses stdin input (including ctrl-c) to make the printing predictable
     if sys.platform != 'darwin': #macos x requires sudo to listen to the keyboard, so no thanks.
-        typer.echo(typer.style(f'Press escape to quit, and any other key to skip a game\'s thumbnails download.', fg=typer.colors.BLUE, bold=True))
+        typer.echo(typer.style(f'Press escape to quit, and any other key to skip a game\'s thumbnails download', fg=typer.colors.BLUE, bold=True))
         listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
         listener.start()
         listener.wait()
@@ -323,7 +323,7 @@ def mainfuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg 
     with keyboard_exclusive_listener():
         try:
             names = readPlaylist(Path(playlist_dir, playlist))
-            typer.echo(typer.style(f"Fetching '{playlist}' from '{system}'", fg=typer.colors.BLUE, bold=True))
+            typer.echo(typer.style(f"{playlist} -> {system}", fg=typer.colors.BLUE, bold=True))
             downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
         except StopProgram as e:
             raise typer.Exit()
@@ -356,7 +356,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         for playlist, system in inSystems:
             try:
                 names = readPlaylist(playlist)
-                typer.echo(typer.style(f"Fetching '{system}.lpl' from '{system}'", fg=typer.colors.BLUE, bold=True))
+                typer.echo(typer.style(f"{system}.lpl -> {system}", fg=typer.colors.BLUE, bold=True))
                 downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
             except StopProgram as e:
                 raise typer.Exit()
@@ -689,5 +689,5 @@ def fuzzall():
     typer.run(mainfuzzall)
 
 if __name__ == "__main__":
-    typer.echo('Please run libretro-fuzz or libretro-fuzzall instead of running the script directly.')
+    typer.echo('Please run libretro-fuzz or libretro-fuzzall instead of running the script directly')
     raise typer.Abort()
