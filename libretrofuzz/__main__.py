@@ -14,6 +14,10 @@
 
 from pathlib import Path
 from typing import Optional, List
+from urllib.request import unquote, quote
+from tempfile import TemporaryDirectory
+from contextlib import contextmanager
+from struct import unpack
 import json
 import os
 import sys
@@ -32,10 +36,6 @@ from tqdm import tqdm
 from pick import pick
 from bs4 import BeautifulSoup
 from requests.exceptions import RequestException
-from urllib.request import unquote, quote
-from tempfile import TemporaryDirectory
-from contextlib import contextmanager
-from struct import unpack
 import typer
 import requests
 
@@ -98,7 +98,6 @@ pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/mas
 
 CONFIDENCE = 100
 MAX_RETRIES = 3
-stopped_format = f'...early exit...'
 
 if sys.platform == 'win32': #this is for 64 bits too
     #this order is to make 'portable' installs have priority in windows, a concept that doesn't exist in linux or macosx
@@ -232,6 +231,19 @@ def checkEscape():
     with stop_lock:
         if escape:
             raise StopProgram()
+@contextmanager
+def keyboard_exclusive_listener():
+    #this allows to skip downloads and non-ctrl-c early exit but suppresses stdin input (including ctrl-c) to make the printing predictable
+    if sys.platform != 'darwin': #macos x requires sudo to listen to the keyboard, so no thanks.
+        typer.echo(typer.style(f'Press escape to quit, and any other key to skip a game\'s thumbnails download.', fg=typer.colors.BLUE, bold=True))
+        listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
+        listener.start()
+        listener.wait()
+    try:
+        yield listener
+    finally:
+        if sys.platform != 'darwin':
+            listener.stop()
 
 def getDirectoryPath(cfg: Path, directory: str):
     with open(cfg) as f:
@@ -241,6 +253,41 @@ def getDirectoryPath(cfg: Path, directory: str):
     configParser.read_string(file_content)
     dirp = os.path.expanduser(configParser['DUMMY'][directory].strip('\t ').strip('"'))
     return Path(dirp)
+    
+#the many lethal errors tested at the beginning of both programs
+#returns a tuple with (playlist_dir: Path, thumbnail_dir: Path, PLAYLISTS: [Path], SYSTEMS: [str]) 
+def test_common_errors(cfg: Path, playlist: str, system: str):
+    if not cfg or not cfg.is_file():
+        typer.echo(f'Invalid Retroarch cfg file: {cfg}')
+        raise typer.Abort()
+    thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
+    if not thumbnails_directory.is_dir():
+        typer.echo(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
+        raise typer.Abort()
+    playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
+    if not playlist_dir.is_dir():
+        typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
+        raise typer.Abort()
+    PLAYLISTS = list(playlist_dir.glob('./*.lpl'))
+    if not PLAYLISTS:
+        typer.echo(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
+        raise typer.Abort()
+    if playlist and Path(playlist_dir, playlist) not in PLAYLISTS:
+        typer.echo(f'Unknown user provided playlist: {playlist}')
+        raise typer.Abort()
+
+    try:
+        with requests.get('https://thumbnails.libretro.com/', timeout=15, stream=True) as r:
+            soup = BeautifulSoup(r.text, 'html.parser')
+        SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
+    except RequestException as err:
+        typer.echo(f'Could not get the remote thumbnail system names')
+        raise typer.Abort()
+    if system and system not in SYSTEMS:
+        typer.echo(f'The user provided system name {system} does not match any remote thumbnail system names')
+        raise typer.Abort()
+    
+    return (playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS)
 
 def mainfuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
@@ -255,37 +302,10 @@ def mainfuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg 
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
     f"""{README}"""
-    #the many lethal errors tested at the beginning of this
-    if not cfg or not cfg.is_file():
-        typer.echo(f'Invalid Retroarch cfg file: {cfg}')
-        raise typer.Abort()
-    thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
-    if not thumbnails_directory.is_dir():
-        typer.echo(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
-        raise typer.Abort()
-    playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
-    if not playlist_dir.is_dir():
-        typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
-        raise typer.Abort()
-    PLAYLISTS = list(playlist_dir.glob('./*.lpl'))
-    if not PLAYLISTS:
-        typer.echo(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
-        raise typer.Abort()
     if playlist and not playlist.endswith('.lpl'):
         playlist = playlist + '.lpl'
-    if playlist and Path(playlist_dir, playlist) not in PLAYLISTS:
-        typer.echo(f'Unknown user provided playlist: {playlist}')
-        raise typer.Abort()
-    try:
-        with requests.get('https://thumbnails.libretro.com/', timeout=30, stream=True) as r:
-            soup = BeautifulSoup(r.text, 'html.parser')
-        SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
-    except RequestException as err:
-        typer.echo(f'Could not get the remote thumbnail system names')
-        raise typer.Abort()
-    if system and system not in SYSTEMS:
-        typer.echo(f'The user provided system name {system} does not match any remote thumbnail system names')
-        raise typer.Abort()
+    
+    playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system)
     
     #ask user for these 2 arguments if they're still not set
     if not playlist:
@@ -299,14 +319,18 @@ def mainfuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg 
         except ValueError:
              default_i = 0
         system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)[0]
-    
-    try:
-        names = readPlaylist(Path(playlist_dir, playlist))
-        typer.echo(typer.style(f"Fetching '{playlist}' from {system}", fg=typer.colors.BLUE, bold=True))
-        downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
-    except RuntimeError as err:
-        typer.echo(f'{playlist}: {err}')
-        raise typer.Abort()
+
+    with keyboard_exclusive_listener():
+        try:
+            names = readPlaylist(Path(playlist_dir, playlist))
+            typer.echo(typer.style(f"Fetching '{playlist}' from '{system}'", fg=typer.colors.BLUE, bold=True))
+            downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
+        except StopProgram as e:
+            raise typer.Exit()
+        except RuntimeError as err:
+            typer.echo(f'{playlist}: {err}')
+            raise typer.Abort()
+
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
@@ -319,29 +343,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
     f"""{README}"""
-    #the many lethal errors tested at the beginning of this
-    if not cfg or not cfg.is_file():
-        typer.echo(f'Invalid Retroarch cfg file: {cfg}')
-        raise typer.Abort()
-    thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
-    if not thumbnails_directory.is_dir():
-        typer.echo(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
-        raise typer.Abort()
-    playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
-    if not playlist_dir.is_dir():
-        typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
-        raise typer.Abort()
-    PLAYLISTS = list(playlist_dir.glob('./*.lpl'))
-    if not PLAYLISTS:
-        typer.echo(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
-        raise typer.Abort()
-    try:
-        with requests.get('https://thumbnails.libretro.com/', timeout=30, stream=True) as r:
-            soup = BeautifulSoup(r.text, 'html.parser')
-        SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
-    except RequestException as err:
-        typer.echo(f'Could not get the remote thumbnail system names')
-        raise typer.Abort()
+    playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, None, None)
     
     notInSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS if os.path.basename(playlist)[:-4] not in SYSTEMS]
     for playlist, system in notInSystems:
@@ -350,14 +352,16 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
     inSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS ]
     
     there_was_a_error = []
-    for playlist, system in inSystems:
-        try:
-            names = readPlaylist(playlist)
-            typer.echo(typer.style(f"Fetching '{system}.lpl' from '{system}'", fg=typer.colors.BLUE, bold=True))
-            downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
-        except RuntimeError as err:
-            there_was_a_error.append((playlist,err))
-    
+    with keyboard_exclusive_listener():
+        for playlist, system in inSystems:
+            try:
+                names = readPlaylist(playlist)
+                typer.echo(typer.style(f"Fetching '{system}.lpl' from '{system}'", fg=typer.colors.BLUE, bold=True))
+                downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
+            except StopProgram as e:
+                raise typer.Exit()
+            except RuntimeError as err:
+                there_was_a_error.append((playlist,err))
     if there_was_a_error:
         typer.echo('Playlists returned errors when trying to download thumbnails:')
         for playlist, err in there_was_a_error:
@@ -381,7 +385,7 @@ def downloader(names: [(str,str)],
     try:
         for tdir in ['/Named_Boxarts/', '/Named_Titles/', '/Named_Snaps/']:
             lr_thumb = lr_thumbs+tdir
-            with requests.get(lr_thumb, timeout=30, stream=True) as r:
+            with requests.get(lr_thumb, timeout=15, stream=True) as r:
                 #this is ok, since some server system directories do not have all the subdirectories
                 if not r.ok and r.reason == 'Not Found':
                     l1 = {}
@@ -521,174 +525,162 @@ def downloader(names: [(str,str)],
     def nosubtitle_normalizer(t):
         return normalizer(nosubtitle_aux(t))
     
-    #this allows to skip downloads and non-ctrl-c early exit but suppresses stdin input (including ctrl-c) to make the printing predictable
-    if sys.platform != 'darwin': #macos x requires sudo to listen to the keyboard, so no thanks.
-        typer.echo(typer.style(f'Press escape to quit, and any other key to skip a game\'s thumbnails download.', fg=typer.colors.BLUE, bold=True))
-        listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
-        listener.start()
-        listener.wait()
-    try:
-        #preprocess data so it's not redone every loop iteration.
-        title_scorer = TitleScorer()
-        #normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
-        norm = nosubtitle_normalizer if nosubtitle else normalizer
-        #we choose the highest similarity of all 3 directories, since no mixed matches are allowed
-        remote_names = set()
-        remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
-        #turn into a set, original key and normalized value.
-        remote_names = { x : norm(x) for x in remote_names }
-        #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
-        #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
-        #it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
-        #a security risk of MitM. Not sure if this helps with that, but at least it won't stop working in the future once that is removed.
-        with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
-            for (name,destination) in names:
-                #if called escape without being in a download zone, exit right away without a cancel print
-                checkEscape()
-                #if the user used filters, filter everything that doesn't match any of the globs
-                if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
-                    continue
+    #preprocess data so it's not redone every loop iteration.
+    title_scorer = TitleScorer()
+    #normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
+    norm = nosubtitle_normalizer if nosubtitle else normalizer
+    #we choose the highest similarity of all 3 directories, since no mixed matches are allowed
+    remote_names = set()
+    remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
+    #turn into a set, original key and normalized value.
+    remote_names = { x : norm(x) for x in remote_names }
+    #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
+    #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
+    #it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
+    #a security risk of MitM. Not sure if this helps with that, but at least it won't stop working in the future once that is removed.
+    with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
+        for (name,destination) in names:
+            #if called escape without being in a download zone, exit right away without a cancel print
+            checkEscape()
+            #if the user used filters, filter everything that doesn't match any of the globs
+            if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
+                continue
 
-                #to simplify this code, the forbidden characters are replaced twice,
-                #on the string that is going to be the filename and the modified string copy of that that is going to be matched.
-                #it could be done only once, but that would require separating the colon character for subtitle matching,
-                #and the 'before' operation would have to find the index before the match to apply it after. A mess.
+            #to simplify this code, the forbidden characters are replaced twice,
+            #on the string that is going to be the filename and the modified string copy of that that is going to be matched.
+            #it could be done only once, but that would require separating the colon character for subtitle matching,
+            #and the 'before' operation would have to find the index before the match to apply it after. A mess.
+            
+            nameaux = name
+            
+            #'before' has priority over subtitle removal
+            if before:
+                #Ignore metadata and get the string before it
+                no_meta = re.search(r'(^[^[({]*)', nameaux)
+                if no_meta:
+                    before_index = no_meta.group(1).find(before)
+                    if before_index != -1:
+                        nameaux = nameaux[0:before_index]
+            
+            #there is a second form of subtitles, which doesn't appear in the thumbnail server directly but can appear in linux game names
+            #that can be more faithful to the real name. It uses the colon character, which is forbidden in windows and only applies to filenames.
+            #Note that this does mean that if the servername has 'Name_ subtitle.png' and not 'Name - subtitle.png' there is less chance of a match,
+            #but that is rarer on the server than the opposite.
+            #not to mention that this only applies if the user signals 'no-subtitle', which presumably means they tried without it - which does match.
+            if nosubtitle:
+                nameaux = nosubtitle_aux(nameaux, ': ')
+            
+            #only the local names should have forbidden characters
+            name = re.sub(forbidden, '_', name )
+            nameaux = re.sub(forbidden, '_', nameaux )
+            
+            #make sure that local labels without any space and 'weird' capitalization get
+            #split into spaces to normalize definite articles in normalization
+            #(CamelCaseNames for labels are common when there are no spaces).
+            #note that metadata like (US) turns into ( U S), since the spaces will get removed
+            #after the check for definite articles, before being compared, it doesn't matter
+            if ' ' not in nameaux:
+                nameaux = ' '.join([s for s in re.split('([A-Z][^A-Z]*)', nameaux) if s])
                 
-                nameaux = name
-                
-                #'before' has priority over subtitle removal
-                if before:
-                    #Ignore metadata and get the string before it
-                    no_meta = re.search(r'(^[^[({]*)', nameaux)
-                    if no_meta:
-                        before_index = no_meta.group(1).find(before)
-                        if before_index != -1:
-                            nameaux = nameaux[0:before_index]
-                
-                #there is a second form of subtitles, which doesn't appear in the thumbnail server directly but can appear in linux game names
-                #that can be more faithful to the real name. It uses the colon character, which is forbidden in windows and only applies to filenames.
-                #Note that this does mean that if the servername has 'Name_ subtitle.png' and not 'Name - subtitle.png' there is less chance of a match,
-                #but that is rarer on the server than the opposite.
-                #not to mention that this only applies if the user signals 'no-subtitle', which presumably means they tried without it - which does match.
-                if nosubtitle:
-                    nameaux = nosubtitle_aux(nameaux, ': ')
-                
-                #only the local names should have forbidden characters
-                name = re.sub(forbidden, '_', name )
-                nameaux = re.sub(forbidden, '_', nameaux )
-                
-                #make sure that local labels without any space and 'weird' capitalization get
-                #split into spaces to normalize definite articles in normalization
-                #(CamelCaseNames for labels are common when there are no spaces).
-                #note that metadata like (US) turns into ( U S), since the spaces will get removed
-                #after the check for definite articles, before being compared, it doesn't matter
-                if ' ' not in nameaux:
-                    nameaux = ' '.join([s for s in re.split('([A-Z][^A-Z]*)', nameaux) if s])
-                    
-                #unlike the server thumbnails, normalization wasn't done yet
-                nameaux = norm(nameaux)
-                
-                #operate on cache (to speed up by not applying normalization every iteration)
-                norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=title_scorer,processor=None,score_cutoff=None) or (None, 0, None)
-                
-                #formating legos
-                zero_format    = '  0 ' if verbose else ''
-                prefix_format  = '{:>3} '.format(str(int(i_max))) if verbose else ''
-                name_format    = f'{nameaux} -> {norm_thumbnail}' if verbose else f'{name} -> {thumbnail}'
-                success_format = f'{prefix_format}{typer.style("Success", fg=typer.colors.GREEN, bold=True)}: {name_format}'
-                failure_format = f'{prefix_format}{typer.style("Failure", fg=typer.colors.RED, bold=True)}: {name_format}'
-                cancel_format  = f'{prefix_format}{typer.style("Skipped", fg=typer.colors.YELLOW, bold=True)}: {name_format}'
-                nomerge_format = f'{zero_format}{typer.style("Nomerge", fg=typer.colors.BLUE, bold=True)}: {name_format}'
-                if thumbnail and ( i_max >= CONFIDENCE or nofail ):
-                    #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
-                    #I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
-                    thumb_dir = Path(thumbnails_directory,destination)
-                    allow = True
-                    if not filters and nomerge:
-                        #to implement no-merge you have to disable downloads on 'at least one' thumbnail (including user added ones)
-                        missing_thumbs = 0
-                        missing_server_thumbs = 0
+            #unlike the server thumbnails, normalization wasn't done yet
+            nameaux = norm(nameaux)
+            
+            #operate on cache (to speed up by not applying normalization every iteration)
+            norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=title_scorer,processor=None,score_cutoff=None) or (None, 0, None)
+            
+            #formating legos
+            zero_format    = '  0 ' if verbose else ''
+            prefix_format  = '{:>3} '.format(str(int(i_max))) if verbose else ''
+            name_format    = f'{nameaux} -> {norm_thumbnail}' if verbose else f'{name} -> {thumbnail}'
+            success_format = f'{prefix_format}{typer.style("Success", fg=typer.colors.GREEN, bold=True)}: {name_format}'
+            failure_format = f'{prefix_format}{typer.style("Failure", fg=typer.colors.RED, bold=True)}: {name_format}'
+            cancel_format  = f'{prefix_format}{typer.style("Skipped", fg=typer.colors.YELLOW, bold=True)}: {name_format}'
+            nomerge_format = f'{zero_format}{typer.style("Nomerge", fg=typer.colors.BLUE, bold=True)}: {name_format}'
+            if thumbnail and ( i_max >= CONFIDENCE or nofail ):
+                #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
+                #I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
+                thumb_dir = Path(thumbnails_directory,destination)
+                allow = True
+                if not filters and nomerge:
+                    #to implement no-merge you have to disable downloads on 'at least one' thumbnail (including user added ones)
+                    missing_thumbs = 0
+                    missing_server_thumbs = 0
+                    for dirname in thumbs._fields:
+                        p = Path(thumb_dir, dirname, name+'.png')
+                        if not p.exists():
+                            missing_thumbs += 1
+                            if thumbnail in getattr(thumbs, dirname):
+                                missing_server_thumbs += 1
+                    allow = missing_thumbs == 3
+                    #despite the above, print only for when it would download if it was allowed, otherwise it is confusing
+                    if not allow and missing_server_thumbs > 0:
+                        typer.echo(nomerge_format)
+                if allow:
+                    downloaded_list = []
+                    try:
                         for dirname in thumbs._fields:
-                            p = Path(thumb_dir, dirname, name+'.png')
-                            if not p.exists():
-                                missing_thumbs += 1
-                                if thumbnail in getattr(thumbs, dirname):
-                                    missing_server_thumbs += 1
-                        allow = missing_thumbs == 3
-                        #despite the above, print only for when it would download if it was allowed, otherwise it is confusing
-                        if not allow and missing_server_thumbs > 0:
-                            typer.echo(nomerge_format)
-                    if allow:
-                        downloaded_list = []
-                        try:
-                            for dirname in thumbs._fields:
-                                parent = Path(thumb_dir, dirname)
-                                real = Path(parent, name + '.png')
-                                tmp_parent = Path(tmpdir, dirname)
-                                temp = Path(tmp_parent, name + '.png')
+                            parent = Path(thumb_dir, dirname)
+                            real = Path(parent, name + '.png')
+                            tmp_parent = Path(tmpdir, dirname)
+                            temp = Path(tmp_parent, name + '.png')
+                            
+                            #something to download
+                            thumbset = getattr(thumbs, dirname)
+                            if thumbnail in thumbset:
+                                os.makedirs(parent, exist_ok=True)
+                                os.makedirs(tmp_parent, exist_ok=True)
                                 
-                                #something to download
-                                thumbset = getattr(thumbs, dirname)
-                                if thumbnail in thumbset:
-                                    os.makedirs(parent, exist_ok=True)
-                                    os.makedirs(tmp_parent, exist_ok=True)
-                                    
-                                    thumbnail_type = dirname[6:-1]+': '
-                                    thumb_format   = f'{success_format}' + '{bar:-10b}' f'{thumbnail_type}' '|{bar:10}|'
-                                    retry_count = MAX_RETRIES
-                                    downloaded = False
-                                    
-                                    def download():
-                                        nonlocal downloaded
-                                        nonlocal retry_count
-                                        with open(temp, 'w+b') as f:
-                                            try:
-                                                with requests.get(thumbset[thumbnail], timeout=15, stream=True) as r:
-                                                    length = int(r.headers.get('Content-Length'))
-                                                    with tqdm.wrapattr(r.raw, 'read', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as raw:
-                                                        while True:
-                                                            checkDownload()
-                                                            chunk = raw.read(4096)
-                                                            if not chunk:
-                                                                break
-                                                            f.write(chunk)
-                                                downloaded = True
-                                            except RequestException as e:
-                                                retry_count = retry_count - 1
-                                                downloaded = False
-                                                if retry_count == 0:
-                                                    typer.echo(f'Exception: {e}', err=True)
-                                            finally:
-                                                if downloaded:
-                                                    downloaded_list.append((temp, real))
-                                    #with filters/reset you always download, but without,
-                                    #you only download if the file doesn't exist already (and isn't downloaded to temp already)
-                                    if filters:
-                                        while not downloaded and retry_count > 0:
-                                            download()
-                                    else:
-                                        while not downloaded and not real.exists() and retry_count > 0:
-                                            download()
-                                elif filters:
-                                    #nothing to download but we want to remove images that may be there in the case of --filter.
-                                    real.unlink(missing_ok=True)
-                        except StopProgram as e:
-                            typer.echo(cancel_format)
-                            raise e
-                        except StopDownload as e:
-                            downloaded_list = []
-                            typer.echo(cancel_format)
-                        for (temp, real) in downloaded_list:
-                            shutil.move(temp, real)
-                        if downloaded_list:
-                            typer.echo(success_format)
-                elif verbose:
-                    typer.echo(failure_format)
-    except StopProgram as e:
-        typer.echo(stopped_format)
-    finally:
-        if sys.platform != 'darwin':
-            listener.stop()
+                                thumbnail_type = dirname[6:-1]+': '
+                                thumb_format   = f'{success_format}' + '{bar:-10b}' f'{thumbnail_type}' '|{bar:10}|'
+                                retry_count = MAX_RETRIES
+                                downloaded = False
+                                
+                                def download():
+                                    nonlocal downloaded
+                                    nonlocal retry_count
+                                    with open(temp, 'w+b') as f:
+                                        try:
+                                            with requests.get(thumbset[thumbnail], timeout=15, stream=True) as r:
+                                                length = int(r.headers.get('Content-Length'))
+                                                with tqdm.wrapattr(r.raw, 'read', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as raw:
+                                                    while True:
+                                                        checkDownload()
+                                                        chunk = raw.read(4096)
+                                                        if not chunk:
+                                                            break
+                                                        f.write(chunk)
+                                            downloaded = True
+                                        except RequestException as e:
+                                            retry_count = retry_count - 1
+                                            downloaded = False
+                                            if retry_count == 0:
+                                                typer.echo(f'Exception: {e}', err=True)
+                                        finally:
+                                            if downloaded:
+                                                downloaded_list.append((temp, real))
+                                #with filters/reset you always download, but without,
+                                #you only download if the file doesn't exist already (and isn't downloaded to temp already)
+                                if filters:
+                                    while not downloaded and retry_count > 0:
+                                        download()
+                                else:
+                                    while not downloaded and not real.exists() and retry_count > 0:
+                                        download()
+                            elif filters:
+                                #nothing to download but we want to remove images that may be there in the case of --filter.
+                                real.unlink(missing_ok=True)
+                    except StopProgram as e:
+                        typer.echo(cancel_format)
+                        raise e
+                    except StopDownload as e:
+                        downloaded_list = []
+                        typer.echo(cancel_format)
+                    for (temp, real) in downloaded_list:
+                        shutil.move(temp, real)
+                    if downloaded_list:
+                        typer.echo(success_format)
+            elif verbose:
+                typer.echo(failure_format)
 
 def fuzzsingle():
     typer.run(mainfuzz)
