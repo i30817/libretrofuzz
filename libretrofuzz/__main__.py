@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-
 #this downloads thumbnails for retroarch playlists
 #it uses fuzzy matching to find the most similar name to the names, based on the playlist description.
 #there may be false positives, especially if the thumbnail server does not have the game but does have
@@ -9,35 +8,36 @@
 #Although a game playlist entry may have a different db this script doesn't handle that to simplify
 #the caching of names, since it's rare, so it assumes all entries in a playlist will have the same system.
 
-
-
-
 from pathlib import Path
 from typing import Optional, List
 from urllib.request import unquote, quote
 from tempfile import TemporaryDirectory
+from contextlib import asynccontextmanager
 from contextlib import contextmanager
+from itertools import chain
 from struct import unpack
 import json
 import os
 import sys
 import io
 import re
-import fnmatch
 import zlib
+import fnmatch
 import threading
 import collections
 import shutil
 import unicodedata
-from pynput import keyboard
-from pynput.keyboard import Key
+import asyncio
+from prompt_toolkit.input import create_input
+from prompt_toolkit.keys import Keys
 from rapidfuzz import process, fuzz
-from tqdm import tqdm
-from pick import pick
 from bs4 import BeautifulSoup
-from requests.exceptions import RequestException
 import typer
-import requests
+import httpx
+import questionary
+from httpx import RequestError
+from tqdm import tqdm
+
 
 ###########################################
 ################ README ###################
@@ -202,61 +202,63 @@ class StopProgram(Exception):
     def __init__(self):
         super().__init__()
 
-stop_lock = threading.Lock()
-counter = 0
+#although it would make sense to protect these with a lock in multithreaded code,
+#for asyncio it's not needed since it's single threaded and they're only used on
+#non-async functions. It's actually impossible to use the correct lock because
+#although the check functions can be turned async, turning the write function
+#async stops it from working because the handler input.attach is not async.
+skip = False
 escape  = False
-def press(key):
-    global counter
-    global escape
-    with stop_lock:
-        counter += 1
-        if key == Key.esc:
-            escape = True
-def release(key):
-    global counter
-    with stop_lock:
-        #it's possible to 'start listening' with a depressed key...
-        counter = max(0, counter - 1)
 def checkDownload():
-    global counter
+    global skip
     global escape
-    with stop_lock:
-        assert counter >= 0
-        if escape:
-            raise StopProgram()
-        if counter > 0:
-            raise StopDownload()
+    if escape:
+        raise StopProgram()
+    if skip:
+        skip = False
+        raise StopDownload()
 def checkEscape():
     global escape
-    with stop_lock:
-        if escape:
-            raise StopProgram()
-@contextmanager
-def keyboard_exclusive_listener():
-    #this allows to skip downloads and non-ctrl-c early exit but suppresses stdin input (including ctrl-c) to make the printing predictable
-    if sys.platform != 'darwin': #macos x requires sudo to listen to the keyboard, so no thanks.
-        typer.echo(typer.style(f'Press escape to quit, and any other key to skip a game\'s thumbnails download', fg=typer.colors.BLUE, bold=True))
-        listener = keyboard.Listener(on_press=press, on_release=release, suppress=True)
-        listener.start()
-        listener.wait()
-    try:
-        yield listener
-    finally:
-        if sys.platform != 'darwin':
-            listener.stop()
+    if escape:
+        raise StopProgram()
 
-def getDirectoryPath(cfg: Path, directory: str):
+@asynccontextmanager
+async def lock_keys() -> None:
+    '''locks out the user from most keys for this console but
+       not combinations, so user kill still works, alt+tab etc
+       it also serves as a quit program and skip download shortcut
+    '''
+    done = asyncio.Event()
+    input = create_input()
+    def keys_ready():
+        global skip
+        global escape
+        #escape needs flush in unix platforms, so this chain
+        for key_press in chain(input.read_keys(), input.flush_keys()):
+            if key_press.key == 'escape' or key_press.key == 'c-c': #esc or control-c
+                escape = True
+                done.set()
+            else:
+                skip = True
+
+    with input.raw_mode():
+        with input.attach(keys_ready):
+            typer.echo(typer.style(f' Press escape to quit, and most other non-meta keys to skip downloads', bold=True))
+            yield done
+
+def getDirectoryPath(cfg: Path, setting: str):
+    '''returns paths inside of a cfg file setting'''
     with open(cfg) as f:
         file_content = '[DUMMY]\n' + f.read()
     import configparser
     configParser = configparser.RawConfigParser()
     configParser.read_string(file_content)
-    dirp = os.path.expanduser(configParser['DUMMY'][directory].strip('\t ').strip('"'))
+    dirp = os.path.expanduser(configParser['DUMMY'][setting].strip('\t ').strip('"'))
     return Path(dirp)
     
-#the many lethal errors tested at the beginning of both programs
-#returns a tuple with (playlist_dir: Path, thumbnail_dir: Path, PLAYLISTS: [Path], SYSTEMS: [str]) 
 def test_common_errors(cfg: Path, playlist: str, system: str):
+    '''returns a tuple with (playlist_dir: Path, thumbnail_dir: Path, PLAYLISTS: [Path], SYSTEMS: [str]) '''
+    
     if not cfg or not cfg.is_file():
         typer.echo(f'Invalid Retroarch cfg file: {cfg}')
         raise typer.Abort()
@@ -277,10 +279,11 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
         raise typer.Abort()
 
     try:
-        with requests.get('https://thumbnails.libretro.com/', timeout=15, stream=True) as r:
-            soup = BeautifulSoup(r.text, 'html.parser')
+        with httpx.Client() as client:
+            page = client.get('https://thumbnails.libretro.com/', timeout=15)
+            soup = BeautifulSoup(page.text, 'html.parser')
         SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
-    except RequestException as err:
+    except RequestError as err:
         typer.echo(f'Could not get the remote thumbnail system names')
         raise typer.Abort()
     if system and system not in SYSTEMS:
@@ -289,9 +292,11 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
     
     return (playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS)
 
-def mainfuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
+            
+def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
+        delay: float = typer.Option(1.5, min=0, max=5, help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -307,32 +312,43 @@ def mainfuzz(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg 
     
     playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system)
     
+    from questionary import Style
+    
+    custom_style = Style([
+        ('answer', 'fg:green bold'),      # submitted answer text behind the question
+    ])
+    
     #ask user for these 2 arguments if they're still not set
     if not playlist:
-        displayplaylists = list(map(os.path.basename, PLAYLISTS))
-        playlist, _ = pick(displayplaylists, 'Which playlist do you want to download thumbnails for?')[0]
+        display_playlists = list(map(os.path.basename, PLAYLISTS))
+        playlist = questionary.select('Which playlist do you want to download thumbnails for?', display_playlists, style=custom_style, qmark='').ask()
+        if not playlist:
+            raise typer.Exit()
     
     if not system:
+        #start with the playlist system selected, if any
+        playlist_sys = playlist[:-4]
+        question = 'Which directory should be used to download thumbnails?'
+        system = questionary.select(question, SYSTEMS, qmark='', style=custom_style, default=playlist_sys if playlist_sys in SYSTEMS else None).ask()
+        if not system:
+            raise typer.Exit()
+    
+    async def runit():
         try:
-            #start with the playlist system selected, if any
-            default_i = SYSTEMS.index(playlist[:-4])
-        except ValueError:
-             default_i = 0
-        system, _ = pick(SYSTEMS, 'Which directory in the thumbnail server should be used to download thumbnails?', default_index=default_i)[0]
-
-    with keyboard_exclusive_listener():
-        try:
-            names = readPlaylist(Path(playlist_dir, playlist))
-            typer.echo(typer.style(f"{playlist} -> {system}", fg=typer.colors.BLUE, bold=True))
-            downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
+            async with lock_keys():
+                names = readPlaylist(Path(playlist_dir, playlist))
+                typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
+                await downloader(names, system, delay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
         except StopProgram as e:
+            typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
         except RuntimeError as err:
             typer.echo(f'{playlist}: {err}')
             raise typer.Abort()
-
+    asyncio.run(runit())
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
+        delay: float = typer.Option(1.5, min=0, max=5, help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -347,29 +363,34 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
     
     notInSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS if os.path.basename(playlist)[:-4] not in SYSTEMS]
     for playlist, system in notInSystems:
-        typer.echo(typer.style(f"'{system}.lpl' custom playlist skipped", fg=typer.colors.RED, bold=True))
+        typer.echo(typer.style(f'Custom playlist skipped: ', fg=typer.colors.RED, bold=True)+typer.style(f'{system}.lpl', bold=True))
         PLAYLISTS.remove(playlist)
     inSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS ]
     
-    there_was_a_error = []
-    with keyboard_exclusive_listener():
-        for playlist, system in inSystems:
-            try:
-                names = readPlaylist(playlist)
-                typer.echo(typer.style(f"{system}.lpl -> {system}", fg=typer.colors.BLUE, bold=True))
-                downloader(names, system, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
-            except StopProgram as e:
-                raise typer.Exit()
-            except RuntimeError as err:
-                there_was_a_error.append((playlist,err))
-    if there_was_a_error:
-        typer.echo('Playlists returned errors when trying to download thumbnails:')
-        for playlist, err in there_was_a_error:
-            typer.echo(f'{playlist}: {err}')
-        raise typer.Abort()
+    async def runit():
+        there_was_a_error = []
+        try:
+            async with lock_keys():
+                for playlist, system in inSystems:
+                    try:
+                        names = readPlaylist(playlist)
+                        typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
+                        await downloader(names, system, delay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
+                    except RuntimeError as err:
+                        there_was_a_error.append((playlist,err))
+            if there_was_a_error:
+                typer.echo('Playlists returned errors when trying to download thumbnails:')
+                for playlist, err in there_was_a_error:
+                    typer.echo(f'{playlist}: {err}')    
+                raise typer.Abort()
+        except StopProgram as e:
+            typer.echo(f'\nCancelled by user\n')
+            raise typer.Exit()
+    asyncio.run(runit())
 
-def downloader(names: [(str,str)],
+async def downloader(names: [(str,str)],
                system: str,
+               delay: float,
                filters: Optional[List[str]],
                nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: bool,
                before: Optional[str],
@@ -385,17 +406,18 @@ def downloader(names: [(str,str)],
     try:
         for tdir in ['/Named_Boxarts/', '/Named_Titles/', '/Named_Snaps/']:
             lr_thumb = lr_thumbs+tdir
-            with requests.get(lr_thumb, timeout=15, stream=True) as r:
-                #this is ok, since some server system directories do not have all the subdirectories
-                if not r.ok and r.reason == 'Not Found':
+            async with httpx.AsyncClient() as client:
+                r = await client.get(lr_thumb, timeout=15)
+                #not found is ok, since some server system directories do not have all the subdirectories
+                if r.status_code == 404:
                     l1 = {}
-                elif r.ok:
+                else:
+                    #will go to except if there is a another error
+                    r.raise_for_status()
                     soup = BeautifulSoup(r.text, 'html.parser')
                     l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
-                else:
-                    r.raise_for_status()
             args.append(l1)
-    except RequestException as err:
+    except RequestError as err:
         typer.echo(f'Could not get the remote thumbnail filenames')
         raise typer.Abort()
     #not a error for the server to have no thumbnails for the system (unusual though)
@@ -587,15 +609,16 @@ def downloader(names: [(str,str)],
             
             #operate on cache (to speed up by not applying normalization every iteration)
             norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=title_scorer,processor=None,score_cutoff=None) or (None, 0, None)
-            
+
             #formating legos
             zero_format    = '  0 ' if verbose else ''
             prefix_format  = '{:>3} '.format(str(int(i_max))) if verbose else ''
             name_format    = f'{nameaux} -> {norm_thumbnail}' if verbose else f'{name} -> {thumbnail}'
             success_format = f'{prefix_format}{typer.style("Success", fg=typer.colors.GREEN, bold=True)}: {name_format}'
             failure_format = f'{prefix_format}{typer.style("Failure", fg=typer.colors.RED, bold=True)}: {name_format}'
-            cancel_format  = f'{prefix_format}{typer.style("Skipped", fg=typer.colors.YELLOW, bold=True)}: {name_format}'
+            cancel_format  = f'{prefix_format}{typer.style("Skipped", fg=(135,135,135), bold=True)}: {name_format}'
             nomerge_format = f'{zero_format}{typer.style("Nomerge", fg=typer.colors.BLUE, bold=True)}: {name_format}'
+            pending_format = f'{prefix_format}{typer.style("Pending", fg=typer.colors.MAGENTA, bold=True)}: {name_format}'
             if thumbnail and ( i_max >= CONFIDENCE or nofail ):
                 #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
                 #I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
@@ -618,6 +641,7 @@ def downloader(names: [(str,str)],
                 if allow:
                     downloaded_list = []
                     try:
+                        first_await = True
                         for dirname in thumbs._fields:
                             parent = Path(thumb_dir, dirname)
                             real = Path(parent, name + '.png')
@@ -631,26 +655,29 @@ def downloader(names: [(str,str)],
                                 os.makedirs(tmp_parent, exist_ok=True)
                                 
                                 thumbnail_type = dirname[6:-1]+': '
-                                thumb_format   = f'{success_format}' + '{bar:-10b}' f'{thumbnail_type}' '|{bar:10}|'
+                                thumb_format   = f'{pending_format}' + '{bar:-10b}' f'{thumbnail_type}' '|{bar:10}|'
                                 retry_count = MAX_RETRIES
                                 downloaded = False
                                 
-                                def download():
+                                async def download():
                                     nonlocal downloaded
                                     nonlocal retry_count
+                                    nonlocal first_await
                                     with open(temp, 'w+b') as f:
                                         try:
-                                            with requests.get(thumbset[thumbnail], timeout=15, stream=True) as r:
-                                                length = int(r.headers.get('Content-Length'))
-                                                with tqdm.wrapattr(r.raw, 'read', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as raw:
-                                                    while True:
-                                                        checkDownload()
-                                                        chunk = raw.read(4096)
-                                                        if not chunk:
-                                                            break
-                                                        f.write(chunk)
+                                            async with httpx.AsyncClient() as client:
+                                                async with client.stream('GET', thumbset[thumbnail], timeout=15) as r:
+                                                    length = int(r.headers['Content-Length'])
+                                                    with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as w:
+                                                        #to give some minor time to cancel particular downloads the first time
+                                                        if first_await:
+                                                            first_await = False
+                                                            await asyncio.sleep(delay)
+                                                        async for chunk in r.aiter_raw(4096):
+                                                            checkDownload()
+                                                            w.write(chunk)
                                             downloaded = True
-                                        except RequestException as e:
+                                        except RequestError as e:
                                             retry_count = retry_count - 1
                                             downloaded = False
                                             if retry_count == 0:
@@ -662,10 +689,10 @@ def downloader(names: [(str,str)],
                                 #you only download if the file doesn't exist already (and isn't downloaded to temp already)
                                 if filters:
                                     while not downloaded and retry_count > 0:
-                                        download()
+                                        await download()
                                 else:
                                     while not downloaded and not real.exists() and retry_count > 0:
-                                        download()
+                                        await download()
                             elif filters:
                                 #nothing to download but we want to remove images that may be there in the case of --filter.
                                 real.unlink(missing_ok=True)
@@ -683,7 +710,7 @@ def downloader(names: [(str,str)],
                 typer.echo(failure_format)
 
 def fuzzsingle():
-    typer.run(mainfuzz)
+    typer.run(mainfuzzsingle)
 
 def fuzzall():
     typer.run(mainfuzzall)
