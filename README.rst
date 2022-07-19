@@ -36,26 +36,20 @@ Example:
   
   The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
 
-Usage:
-  **libretro-fuzz [OPTIONS] [CFG]**
+libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
+  :CFG:                 Path to the retroarch cfg file. If not default, asked from the user.
   
-  **libretro-fuzzall [OPTIONS] [CFG]**
+                        Linux default:   ``~/.config/retroarch/retroarch.cfg``
   
-  ``libretro-fuzzall`` doesn't have the ``--playlist`` and ``--system`` options
-
-Arguments:
-  [CFG]  Path to the retroarch cfg file. If not default, asked from the user.
+                        Windows default: ``%APPDATA%/RetroArch/retroarch.cfg``
   
-  [Linux default:   ``~/.config/retroarch/retroarch.cfg``]
+                        MacOS default:   ``~/Library/Application Support/RetroArch/retroarch.cfg``
   
-  [Windows default: ``%APPDATA%/RetroArch/retroarch.cfg``]
-  
-  [MacOS default:   ``~/Library/Application Support/RetroArch/retroarch.cfg``]
-
-Options:
-  --playlist NAME       Playlist name with labels used for thumbnail fuzzy
+  --playlist <NAME libretro-fuzz only>
+                        Playlist name with labels used for thumbnail fuzzy
                         matching. If not provided, asked from the user.
-  --system NAME         Directory name in the server to download thumbnails.
+  --system <NAME libretro-fuzz only>
+                        Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
   --delay FLOAT         Delay in seconds before downloading game thumbnails to
                         allow the user to skip them.  [default: 0; 0<=x<=5]
