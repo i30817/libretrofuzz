@@ -35,57 +35,6 @@ from tqdm import tqdm
 import typer
 
 ###########################################
-################ README ###################
-###########################################
-
-README = """
-Fuzzy Retroarch thumbnail downloader
-
-In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
-
-These programs, for each game label on a playlist, download the most similar named image to display in retroarch.
-
-There are several options to fit unusual labels, but you can just run them to get the most restrictive default.
-
-If you use libretro-fuzz, it will download for a single playlist by asking for the playlist and system if they're not provided.
-If you use libretro-fuzzall, it will dowload for all playlists with standard libretro names, and will skip custom playlists.
-
-Besides those differences, if no retroarch.cfg is provided, both programs try to use the default retroarch.cfg.
-
-Example:
-
- libretro-fuzz --no-subtitle --before '_'
-
- The Retroplay WHDLoad set has labels like 'MonkeyIsland2_v1.3_0020' after a manual scan. These labels don't have subtitles and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads and the system name 'Commodore - Amiga' to download from the libretro amiga thumbnails.
-
-Note that the system name you download from doesn't have to be the same as the playlist name.
-
-If the thumbnail server contains games from multiple releases for the system (like 'ScummVM'), be careful using extra options since it is easy to end up with 'slightly wrong' covers.
-
-Example:
-
- libretro-fuzz --no-meta --no-merge
-
- After downloading 'ScummVM' thumbnails (and not before, to minimize false positives), we'd like to try to pickup a few covers from 'DOS' thumbnails and skip download if there a risk of mixing thumbnails from 'DOS' and 'ScummVM' for a single game.
- Choose the ScummVM playlist and DOS system name, and covers would be downloaded with risk of false positives: CD vs floppy covers, USA vs Japan covers, or another platform vs DOS.
-
-Because of this increased risk of false positives with options, the default is to count everything except hack metadata as part of the match, and the default pre-selected system name to be the same as the playlist name, which is safest.
-
-False positives will then mostly be from the thumbnail server not having a single thumbnail of the game, and the program selecting the best match it can which is still good enough to pass the similarity test. Common false positives from this are sequels or prequels, or different releases, most often regions/languages.
-
-Example:
-
- libretro-fuzz --no-subtitle --before '_' --filter '[Ii]shar*'
-
- The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, the Ishar series in the WHDLoad playlist.
-
-To update this program with pip installed, type:
-
-pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/master.zip
-    """
-
-
-###########################################
 ########### SCRIPT SETTINGS ###############
 ###########################################
 
@@ -299,7 +248,6 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
-    f"""{README}"""
     if playlist and not playlist.endswith('.lpl'):
         playlist = playlist + '.lpl'
     
@@ -349,7 +297,6 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
-    f"""{README}"""
     playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, None, None)
     
     notInSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS if os.path.basename(playlist)[:-4] not in SYSTEMS]
