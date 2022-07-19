@@ -43,13 +43,12 @@ Fuzzy Retroarch thumbnail downloader
 
 In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
 
-These programs, for each game label on a playlist, download the most similar name image to display in retroarch.
+These programs, for each game label on a playlist, download the most similar named image to display in retroarch.
 
 There are several options to fit unusual labels, but you can just run them to get the most restrictive default.
 
-If you use libretro-fuzz, it will ask for the playlist and system if they're not provided.
-
-If you use libretro-fuzzall, it will attempt to match the playlist names to the server system names, and will skip custom playlist names.
+If you use libretro-fuzz, it will download for a single playlist by asking for the playlist and system if they're not provided.
+If you use libretro-fuzzall, it will dowload for all playlists with standard libretro names, and will skip custom playlists.
 
 Besides those differences, if no retroarch.cfg is provided, both programs try to use the default retroarch.cfg.
 
@@ -290,7 +289,7 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
 def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
-        delay: float = typer.Option(1.5, min=0, max=5, help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
+        delay: float = typer.Option(0, min=0, max=5, clamp=True, metavar='FLOAT', help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -340,7 +339,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     asyncio.run(runit(), debug=False)
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
-        delay: float = typer.Option(1.5, min=0, max=5, help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
+        delay: float = typer.Option(0, min=0, max=5, clamp=True, metavar='FLOAT', help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),

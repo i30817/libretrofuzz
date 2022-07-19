@@ -3,13 +3,12 @@
 
 In Retroarch, when you use the manual scanner to get non-standard games or hacks in playlists, thumbnails often fail to download.
 
-These programs, for each game label on a playlist, download the most similar name image to display in retroarch.
+These programs, for each game label on a playlist, download the most similar named image to display in retroarch.
 
 There are several options to fit unusual labels, but you can just run them to get the most restrictive default.
 
-If you use libretro-fuzz, it will ask for the playlist and system if they're not provided.
-
-If you use libretro-fuzzall, it will attempt to match the playlist names to the server system names, and will skip custom playlist names.
+If you use ``libretro-fuzz``, it will download for a single playlist by asking for the playlist and system if they're not provided.
+If you use ``libretro-fuzzall``, it will dowload for all playlists with standard libretro names, and will skip custom playlists.
 
 Besides those differences, if no retroarch.cfg is provided, both programs try to use the default retroarch.cfg.
 
@@ -42,16 +41,16 @@ Usage:
   
   **libretro-fuzzall [OPTIONS] [CFG]**
   
-  libretro-fuzzall doesn't have the --playlist and --system options
+  ``libretro-fuzzall`` doesn't have the ``--playlist`` and ``--system`` options
 
 Arguments:
   [CFG]  Path to the retroarch cfg file. If not default, asked from the user.
   
-  [linux default:   ~/.config/retroarch/retroarch.cfg]
+  [Linux default:   ``~/.config/retroarch/retroarch.cfg``]
   
-  [windows default: %APPDATA%/RetroArch/retroarch.cfg]
+  [Windows default: ``%APPDATA%/RetroArch/retroarch.cfg``]
   
-  [MacOS default:   ~/Library/Application Support/RetroArch/retroarch.cfg]
+  [MacOS default:   ``~/Library/Application Support/RetroArch/retroarch.cfg``]
 
 Options:
   --playlist NAME       Playlist name with labels used for thumbnail fuzzy
@@ -59,7 +58,7 @@ Options:
   --system NAME         Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
   --delay FLOAT         Delay in seconds before downloading game thumbnails to
-                        allow the user to skip them.  [default: 1.5; 0<=x<=5]
+                        allow the user to skip them.  [default: 0; 0<=x<=5]
   --filter GLOB         Restricts downloads to game labels globs - not paths -
                         in the playlist, can be used multiple times and
                         matches reset thumbnails, --filter '*' downloads all.
