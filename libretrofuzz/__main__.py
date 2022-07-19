@@ -12,8 +12,7 @@ from pathlib import Path
 from typing import Optional, List
 from urllib.request import unquote, quote
 from tempfile import TemporaryDirectory
-from contextlib import asynccontextmanager
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from itertools import chain
 from struct import unpack
 import json
@@ -23,22 +22,17 @@ import io
 import re
 import zlib
 import fnmatch
-import threading
 import collections
 import shutil
 import unicodedata
 import asyncio
 from prompt_toolkit.input import create_input
-from prompt_toolkit.keys import Keys
 from rapidfuzz import process, fuzz
 from bs4 import BeautifulSoup
-import typer
-import httpx
-import questionary
-from questionary import Style
-from httpx import RequestError
+from questionary import Style, select
+from httpx import RequestError, Client, AsyncClient
 from tqdm import tqdm
-
+import typer
 
 ###########################################
 ################ README ###################
@@ -203,14 +197,13 @@ class StopProgram(Exception):
     def __init__(self):
         super().__init__()
 
-#although it would make sense to protect these with a lock in multithreaded code,
-#for asyncio it's not needed since it's single threaded and they're only used on
-#non-async functions. It's actually impossible to use the correct lock because
-#although the check functions can be turned async, turning the write function
-#async stops it from working because the handler input.attach is not async.
 skip = False
 escape  = False
 def checkDownload():
+    '''threading.get_native_id() in this and other acesses of these variables
+       confirms all accesses are in synchronous functions on one thread so
+       there is no need to use any lock, async or not.
+    '''
     global skip
     global escape
     if escape:
@@ -280,7 +273,7 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
         raise typer.Abort()
 
     try:
-        with httpx.Client() as client:
+        with Client() as client:
             page = client.get('https://thumbnails.libretro.com/', timeout=15)
             soup = BeautifulSoup(page.text, 'html.parser')
         SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
@@ -320,7 +313,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     #ask user for these 2 arguments if they're still not set
     if not playlist:
         display_playlists = list(map(os.path.basename, PLAYLISTS))
-        playlist = questionary.select('Which playlist do you want to download thumbnails for?', display_playlists, style=custom_style, qmark='').ask()
+        playlist = select('Which playlist do you want to download thumbnails for?', display_playlists, style=custom_style, qmark='').ask()
         if not playlist:
             raise typer.Exit()
     
@@ -328,7 +321,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         #start with the playlist system selected, if any
         playlist_sys = playlist[:-4]
         question = 'Which directory should be used to download thumbnails?'
-        system = questionary.select(question, SYSTEMS, qmark='', style=custom_style, default=playlist_sys if playlist_sys in SYSTEMS else None).ask()
+        system = select(question, SYSTEMS, qmark='', style=custom_style, default=playlist_sys if playlist_sys in SYSTEMS else None).ask()
         if not system:
             raise typer.Exit()
     
@@ -344,7 +337,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         except RuntimeError as err:
             typer.echo(f'{playlist}: {err}')
             raise typer.Abort()
-    asyncio.run(runit())
+    asyncio.run(runit(), debug=False)
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         delay: float = typer.Option(1.5, min=0, max=5, help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
@@ -385,7 +378,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
-    asyncio.run(runit())
+    asyncio.run(runit(), debug=False)
 
 async def downloader(names: [(str,str)],
                system: str,
@@ -405,7 +398,7 @@ async def downloader(names: [(str,str)],
     try:
         for tdir in ['/Named_Boxarts/', '/Named_Titles/', '/Named_Snaps/']:
             lr_thumb = lr_thumbs+tdir
-            async with httpx.AsyncClient() as client:
+            async with AsyncClient() as client:
                 r = await client.get(lr_thumb, timeout=15)
                 #not found is ok, since some server system directories do not have all the subdirectories
                 if r.status_code == 404:
@@ -664,7 +657,7 @@ async def downloader(names: [(str,str)],
                                     nonlocal first_await
                                     with open(temp, 'w+b') as f:
                                         try:
-                                            async with httpx.AsyncClient() as client:
+                                            async with AsyncClient() as client:
                                                 async with client.stream('GET', thumbset[thumbnail], timeout=15) as r:
                                                     length = int(r.headers['Content-Length'])
                                                     with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as w:
