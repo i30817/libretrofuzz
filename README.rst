@@ -58,7 +58,7 @@ Options:
                         matching. If not provided, asked from the user.
   --system NAME         Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
-  --delay FLOAT RANGE   Delay in seconds before downloading game thumbnails to
+  --delay FLOAT         Delay in seconds before downloading game thumbnails to
                         allow the user to skip them.  [default: 1.5; 0<=x<=5]
   --filter GLOB         Restricts downloads to game labels globs - not paths -
                         in the playlist, can be used multiple times and
