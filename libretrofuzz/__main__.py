@@ -31,8 +31,9 @@ from rapidfuzz import process, fuzz
 from bs4 import BeautifulSoup
 from questionary import Style, select
 from httpx import RequestError, Client, AsyncClient
-from tqdm import tqdm
 import typer
+from tqdm import trange, tqdm
+#from tqdm.rich import trange, tqdm
 
 ###########################################
 ########### SCRIPT SETTINGS ###############
@@ -238,7 +239,7 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
 def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
-        delay: float = typer.Option(0, min=0, max=5, clamp=True, metavar='FLOAT', help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
+        delay: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -287,7 +288,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     asyncio.run(runit(), debug=False)
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
-        delay: float = typer.Option(0, min=0, max=5, clamp=True, metavar='FLOAT', help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
+        delay: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds before downloading game thumbnails to allow the user to skip them.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -556,7 +557,8 @@ async def downloader(names: [(str,str)],
             failure_format = f'{prefix_format}{typer.style("Failure", fg=typer.colors.RED, bold=True)}: {name_format}'
             cancel_format  = f'{prefix_format}{typer.style("Skipped", fg=(135,135,135), bold=True)}: {name_format}'
             nomerge_format = f'{zero_format}{typer.style("Nomerge", fg=typer.colors.BLUE, bold=True)}: {name_format}'
-            pending_format = f'{prefix_format}{typer.style("Pending", fg=typer.colors.MAGENTA, bold=True)}: {name_format}'
+            getting_format = f'{prefix_format}{typer.style("Getting", fg=typer.colors.MAGENTA, bold=True)}: {name_format}'
+            waiting_format = f'{prefix_format}{typer.style("Waiting", fg=typer.colors.YELLOW, bold=True)}: {name_format}'
             if thumbnail and ( i_max >= CONFIDENCE or nofail ):
                 #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
                 #I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
@@ -592,11 +594,11 @@ async def downloader(names: [(str,str)],
                                 os.makedirs(parent, exist_ok=True)
                                 os.makedirs(tmp_parent, exist_ok=True)
                                 
-                                thumbnail_type = dirname[6:-1]+': '
-                                thumb_format   = f'{pending_format}' + '{bar:-10b}' f'{thumbnail_type}' '|{bar:10}|'
+                                thumbnail_type = dirname[6:-1]
+                                thumb_format   = f'{getting_format}' + '{bar:-10b}' f'{thumbnail_type}:' '|{bar:10u}|'
+                                wait_format    = f'{waiting_format}' + '{bar:-5b}Keypress to skip: {remaining_s:2.1f}s'
                                 retry_count = MAX_RETRIES
                                 downloaded = False
-                                
                                 async def download():
                                     nonlocal downloaded
                                     nonlocal retry_count
@@ -606,11 +608,16 @@ async def downloader(names: [(str,str)],
                                             async with AsyncClient() as client:
                                                 async with client.stream('GET', thumbset[thumbnail], timeout=15) as r:
                                                     length = int(r.headers['Content-Length'])
+                                                    #delay with cancel
+                                                    if first_await:
+                                                        first_await = False
+                                                        count = int(delay/0.1)
+                                                        if count > 0:
+                                                            for i in trange(count, total=count, dynamic_ncols=True, bar_format=wait_format, leave=False):
+                                                                checkDownload()
+                                                                await asyncio.sleep(0.1)
+                                                    #actual download (also with cancel)
                                                     with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as w:
-                                                        #to give some minor time to cancel particular downloads the first time
-                                                        if first_await:
-                                                            first_await = False
-                                                            await asyncio.sleep(delay)
                                                         async for chunk in r.aiter_raw(4096):
                                                             checkDownload()
                                                             w.write(chunk)
