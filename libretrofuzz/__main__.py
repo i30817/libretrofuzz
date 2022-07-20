@@ -276,14 +276,19 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     async def runit():
         try:
             async with lock_keys():
-                names = readPlaylist(Path(playlist_dir, playlist))
-                typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
-                await downloader(names, system, delay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
+                #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
+                #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
+                #it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
+                #a security risk of MitM. Not sure if this helps with that, but at least it won't stop working in the future once that is removed.
+                with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
+                    names = readPlaylist(Path(playlist_dir, playlist))
+                    typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
+                    await downloader(names, system, delay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory)
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
         except RuntimeError as err:
-            typer.echo(f'{playlist}: {err}')
+            typer.echo(err)
             raise typer.Abort()
     asyncio.run(runit(), debug=False)
 
@@ -310,17 +315,18 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         there_was_a_error = []
         try:
             async with lock_keys():
-                for playlist, system in inSystems:
-                    try:
-                        names = readPlaylist(playlist)
-                        typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
-                        await downloader(names, system, delay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, thumbnails_directory)
-                    except RuntimeError as err:
-                        there_was_a_error.append((playlist,err))
+                with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
+                    for playlist, system in inSystems:
+                        try:
+                            names = readPlaylist(playlist)
+                            typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
+                            await downloader(names, system, delay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory)
+                        except RuntimeError as err:
+                            there_was_a_error.append((playlist,err))
             if there_was_a_error:
                 typer.echo('Playlists returned errors when trying to download thumbnails:')
                 for playlist, err in there_was_a_error:
-                    typer.echo(f'{playlist}: {err}')    
+                    typer.echo(err)
                 raise typer.Abort()
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
@@ -333,6 +339,7 @@ async def downloader(names: [(str,str)],
                filters: Optional[List[str]],
                nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: bool,
                before: Optional[str],
+               tmpdir: Path,
                thumbnails_directory: Path
                ):
     #not a error to pass a empty playlist
@@ -495,18 +502,13 @@ async def downloader(names: [(str,str)],
     remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
     #turn into a set, original key and normalized value.
     remote_names = { x : norm(x) for x in remote_names }
-    #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
-    #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
-    #it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
-    #a security risk of MitM. Not sure if this helps with that, but at least it won't stop working in the future once that is removed.
-    with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
+    async with AsyncClient() as client:
         for (name,destination) in names:
             #if called escape without being in a download zone, exit right away without a cancel print
             checkEscape()
             #if the user used filters, filter everything that doesn't match any of the globs
             if filters and not any(map(lambda x : fnmatch.fnmatch(name, x), filters)):
                 continue
-
             #to simplify this code, the forbidden characters are replaced twice,
             #on the string that is going to be the filename and the modified string copy of that that is going to be matched.
             #it could be done only once, but that would require separating the colon character for subtitle matching,
@@ -542,23 +544,23 @@ async def downloader(names: [(str,str)],
             #after the check for definite articles, before being compared, it doesn't matter
             if ' ' not in nameaux:
                 nameaux = ' '.join([s for s in re.split('([A-Z][^A-Z]*)', nameaux) if s])
-                
+            
             #unlike the server thumbnails, normalization wasn't done yet
             nameaux = norm(nameaux)
             
             #operate on cache (to speed up by not applying normalization every iteration)
             norm_thumbnail, i_max, thumbnail = process.extractOne(nameaux, remote_names, scorer=title_scorer,processor=None,score_cutoff=None) or (None, 0, None)
-
+            
             #formating legos
-            zero_format    = '  0 ' if verbose else ''
+            zeroth_format  = '  0 ' if verbose else ''
             prefix_format  = '{:>3} '.format(str(int(i_max))) if verbose else ''
             name_format    = f'{nameaux} -> {norm_thumbnail}' if verbose else f'{name} -> {thumbnail}'
-            success_format = f'{prefix_format}{typer.style("Success", fg=typer.colors.GREEN, bold=True)}: {name_format}'
-            failure_format = f'{prefix_format}{typer.style("Failure", fg=typer.colors.RED, bold=True)}: {name_format}'
-            cancel_format  = f'{prefix_format}{typer.style("Skipped", fg=(135,135,135), bold=True)}: {name_format}'
-            nomerge_format = f'{zero_format}{typer.style("Nomerge", fg=typer.colors.BLUE, bold=True)}: {name_format}'
-            getting_format = f'{prefix_format}{typer.style("Getting", fg=typer.colors.MAGENTA, bold=True)}: {name_format}'
-            waiting_format = f'{prefix_format}{typer.style("Waiting", fg=typer.colors.YELLOW, bold=True)}: {name_format}'
+            success_format = f'{prefix_format}{typer.style("Success",   fg=typer.colors.GREEN, bold=True)}: {name_format}'
+            failure_format = f'{prefix_format}{typer.style("Failure",     fg=typer.colors.RED, bold=True)}: {name_format}'
+            cancel_format  = f'{prefix_format}{typer.style("Skipped",        fg=(135,135,135), bold=True)}: {name_format}'
+            nomerge_format = f'{zeroth_format}{typer.style("Nomerge",    fg=typer.colors.CYAN, bold=True)}: {name_format}'
+            getting_format = f'{prefix_format}{typer.style("Getting",    fg=typer.colors.BLUE, bold=True)}: {name_format}'
+            waiting_format = f'{prefix_format}{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {name_format}' '{bar:-9b} {remaining_s:2.1f}s: {bar:10u}'
             if thumbnail and ( i_max >= CONFIDENCE or nofail ):
                 #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
                 #I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
@@ -581,7 +583,7 @@ async def downloader(names: [(str,str)],
                 if allow:
                     downloaded_list = []
                     try:
-                        first_await = True
+                        first_wait = True
                         for dirname in thumbs._fields:
                             parent = Path(thumb_dir, dirname)
                             real = Path(parent, name + '.png')
@@ -595,32 +597,28 @@ async def downloader(names: [(str,str)],
                                 os.makedirs(tmp_parent, exist_ok=True)
                                 
                                 thumbnail_type = dirname[6:-1]
-                                thumb_format   = f'{getting_format}' + '{bar:-10b}' f'{thumbnail_type}:' '|{bar:10u}|'
-                                wait_format    = f'{waiting_format}' + '{bar:-5b}Keypress to skip: {remaining_s:2.1f}s'
+                                thumb_format   =  f'{getting_format}' '{bar:-9b}' f'{thumbnail_type}' ' {percentage:3.0f}%: {bar:10u}'
                                 retry_count = MAX_RETRIES
                                 downloaded = False
                                 async def download():
                                     nonlocal downloaded
                                     nonlocal retry_count
-                                    nonlocal first_await
+                                    nonlocal first_wait
                                     try:
-                                        async with AsyncClient() as client:
-                                            async with client.stream('GET', thumbset[thumbnail], timeout=15) as r:
-                                                length = int(r.headers['Content-Length'])
-                                                #delay with cancel (this could be outside of the GET, but there would be a pause before the start of the download)
-                                                if first_await:
-                                                    first_await = False
+                                        async with client.stream('GET', thumbset[thumbnail], timeout=15) as r:
+                                            length = int(r.headers['Content-Length'])
+                                            with open(temp, 'w+b') as f:
+                                                if first_wait: #delay only occurs for the first thumbnail type download
+                                                    first_wait = False
                                                     count = int(delay/0.1)
-                                                    if count > 0:
-                                                        for i in trange(count, total=count, dynamic_ncols=True, bar_format=wait_format, leave=False):
+                                                    if count:
+                                                        for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
                                                             checkDownload()
                                                             await asyncio.sleep(0.1)
-                                                #actual download (also with cancel)
-                                                with open(temp, 'w+b') as f:
-                                                    with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as w:
-                                                        async for chunk in r.aiter_raw(4096):
-                                                            checkDownload()
-                                                            w.write(chunk)
+                                                with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=thumb_format, colour='BLUE', leave=False) as w:
+                                                    async for chunk in r.aiter_raw(4096):
+                                                        checkDownload()
+                                                        w.write(chunk)
                                         downloaded = True
                                     except RequestError as e:
                                         retry_count = retry_count - 1
