@@ -603,33 +603,33 @@ async def downloader(names: [(str,str)],
                                     nonlocal downloaded
                                     nonlocal retry_count
                                     nonlocal first_await
-                                    with open(temp, 'w+b') as f:
-                                        try:
-                                            async with AsyncClient() as client:
-                                                async with client.stream('GET', thumbset[thumbnail], timeout=15) as r:
-                                                    length = int(r.headers['Content-Length'])
-                                                    #delay with cancel
-                                                    if first_await:
-                                                        first_await = False
-                                                        count = int(delay/0.1)
-                                                        if count > 0:
-                                                            for i in trange(count, total=count, dynamic_ncols=True, bar_format=wait_format, leave=False):
-                                                                checkDownload()
-                                                                await asyncio.sleep(0.1)
-                                                    #actual download (also with cancel)
+                                    try:
+                                        async with AsyncClient() as client:
+                                            async with client.stream('GET', thumbset[thumbnail], timeout=15) as r:
+                                                length = int(r.headers['Content-Length'])
+                                                #delay with cancel (this could be outside of the GET, but there would be a pause before the start of the download)
+                                                if first_await:
+                                                    first_await = False
+                                                    count = int(delay/0.1)
+                                                    if count > 0:
+                                                        for i in trange(count, total=count, dynamic_ncols=True, bar_format=wait_format, leave=False):
+                                                            checkDownload()
+                                                            await asyncio.sleep(0.1)
+                                                #actual download (also with cancel)
+                                                with open(temp, 'w+b') as f:
                                                     with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=thumb_format, leave=False) as w:
                                                         async for chunk in r.aiter_raw(4096):
                                                             checkDownload()
                                                             w.write(chunk)
-                                            downloaded = True
-                                        except RequestError as e:
-                                            retry_count = retry_count - 1
-                                            downloaded = False
-                                            if retry_count == 0:
-                                                typer.echo(f'Exception: {e}', err=True)
-                                        finally:
-                                            if downloaded:
-                                                downloaded_list.append((temp, real))
+                                        downloaded = True
+                                    except RequestError as e:
+                                        retry_count = retry_count - 1
+                                        downloaded = False
+                                        if retry_count == 0:
+                                            typer.echo(f'Exception: {e}', err=True)
+                                    finally:
+                                        if downloaded:
+                                            downloaded_list.append((temp, real))
                                 #with filters/reset you always download, but without,
                                 #you only download if the file doesn't exist already (and isn't downloaded to temp already)
                                 if filters:
