@@ -167,8 +167,8 @@ def checkEscape():
 
 @asynccontextmanager
 async def lock_keys() -> None:
-    '''locks out the user from most keys for this console but
-       not combinations, so user kill still works, alt+tab etc
+    '''blocks key echoing for this console and recognizes most keys
+       including many combinations, user kill still works, alt+tab...
        it also serves as a quit program and skip download shortcut
     '''
     done = asyncio.Event()
@@ -255,7 +255,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system)
     
     custom_style = Style([
-        ('answer', 'fg:green bold'),      # submitted answer text behind the question
+        ('answer', 'fg:green bold'),
     ])
     
     #ask user for these 2 arguments if they're still not set
@@ -269,7 +269,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         #start with the playlist system selected, if any
         playlist_sys = playlist[:-4]
         question = 'Which directory should be used to download thumbnails?'
-        system = select(question, SYSTEMS, qmark='', style=custom_style, default=playlist_sys if playlist_sys in SYSTEMS else None).ask()
+        system = select(question, SYSTEMS, style=custom_style, qmark='', default=playlist_sys if playlist_sys in SYSTEMS else None).ask()
         if not system:
             raise typer.Exit()
     
