@@ -386,7 +386,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
-    if playlist and not playlist.endswith('.lpl'):
+    if playlist and not playlist.lower().endswith('.lpl'):
         playlist = playlist + '.lpl'
     
     playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system)
