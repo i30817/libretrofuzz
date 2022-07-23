@@ -30,7 +30,7 @@ from prompt_toolkit.input import create_input
 from rapidfuzz import process, fuzz
 from bs4 import BeautifulSoup
 from questionary import Style, select
-from httpx import RequestError, Client, AsyncClient
+from httpx import RequestError, HTTPStatusError, Client, AsyncClient
 import typer
 from tqdm import trange, tqdm
 #from tqdm.rich import trange, tqdm
@@ -360,7 +360,7 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
             page = client.get('https://thumbnails.libretro.com/', timeout=15)
             soup = BeautifulSoup(page.text, 'html.parser')
         SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
-    except RequestError as err:
+    except (RequestError,HTTPStatusError) as err:
         typer.echo(f'Could not get the remote thumbnail system names')
         raise typer.Abort()
     if system and system not in SYSTEMS:
@@ -506,7 +506,7 @@ async def downloader(names: [(str,str)],
                 soup = BeautifulSoup(response, 'html.parser')
                 l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
             args.append(l1)
-    except RequestError as err:
+    except (RequestError,HTTPStatusError) as err:
         typer.echo(f'Could not get the remote thumbnail filenames')
         raise typer.Abort()
     #not a error for the server to have no thumbnails for the system (unusual though)
@@ -627,6 +627,9 @@ async def downloader(names: [(str,str)],
                                 nonlocal first_delay
                                 try:
                                     async with client.stream('GET', thumbset[thumbnail], timeout=15) as r:
+                                        #it's possible for the server to have a link that goes nowhere because of the git repository using symlinks improperly
+                                        r.raise_for_status()
+                                        #in which case this call fails
                                         length = int(r.headers['Content-Length'])
                                         with open(temp, 'w+b') as f:
                                             if first_delay: #delay only occurs for the first thumbnail type download
@@ -641,7 +644,7 @@ async def downloader(names: [(str,str)],
                                                     checkDownload()
                                                     w.write(chunk)
                                     downloaded = True
-                                except RequestError as e:
+                                except (RequestError,HTTPStatusError) as e:
                                     retry_count = retry_count - 1
                                     downloaded = False
                                     if retry_count == 0:
