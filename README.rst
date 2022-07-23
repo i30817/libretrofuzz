@@ -51,8 +51,11 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --system <NAME libretro-fuzz only>
                         Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
-  --delay FLOAT         Delay in seconds before downloading game thumbnails to
-                        allow the user to skip them.  [default: 0; 0<=x<=10]
+  --delay FLOAT         Delay in seconds to skip thumbnails download.
+                        [default: 0; 0<=x<=10]
+  --delay-image FLOAT   Delay in seconds after download to skip replacing
+                        thumbnails. Grey border is unchanged and blue border
+                        is new. Viu or Chafa required.  [default: 0; 0<=x<=10]
   --filter GLOB         Restricts downloads to game labels globs - not paths -
                         in the playlist, can be used multiple times and
                         matches reset thumbnails, --filter '*' downloads all.
