@@ -427,16 +427,15 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     
     async def runit():
         try:
-            async with lock_keys():
+            async with lock_keys(), AsyncClient() as client:
                 #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
                 #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
                 #it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
                 #a security risk of MitM. Not sure if this helps with that, but at least it won't stop working in the future once that is removed.
                 with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
-                    async with AsyncClient() as client:
-                        names = readPlaylist(Path(playlist_dir, playlist))
-                        typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
-                        await downloader(names, system, delay, imgdelay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                    names = readPlaylist(Path(playlist_dir, playlist))
+                    typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
+                    await downloader(names, system, delay, imgdelay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
@@ -464,13 +463,12 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
     
     async def runit():
         try:
-            async with lock_keys():
+            async with lock_keys(), AsyncClient() as client:
                 with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
-                    async with AsyncClient() as client:
-                        for playlist, system in inSystems:
-                            names = readPlaylist(playlist)
-                            typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
-                            await downloader(names, system, delay, imgdelay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                    for playlist, system in inSystems:
+                        names = readPlaylist(playlist)
+                        typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
+                        await downloader(names, system, delay, imgdelay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
