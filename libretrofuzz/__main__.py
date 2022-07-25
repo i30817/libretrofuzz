@@ -350,9 +350,7 @@ def test_common_errors(cfg: Path, playlist: str, system: str, imgdelay: float):
         global viewer
         viewer = which('viu')
         if not viewer:
-            viewer = which('chafa')
-        if not viewer:
-            typer.echo(f'Shell image viewers viu and chafa were not found, so --delay-image will attempt to display on the system image viewer and lose shell focus')
+            typer.echo(f'Shell image viewer viu was not found, --delay-image will attempt to display on the system image viewer and lose shell focus')
     if not cfg or not cfg.is_file():
         typer.echo(f'Invalid Retroarch cfg file: {cfg}')
         raise typer.Abort()
@@ -393,7 +391,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
         delay: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds to skip thumbnails download.'),
-        imgdelay: float = typer.Option(0, '--delay-image', min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds after download to skip replacing thumbnails. Grey border is unchanged and blue border is new. Viu or Chafa required.'),
+        imgdelay: float = typer.Option(0, '--delay-image', min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds after download to skip replacing displayed thumbnails. Grey border is unchanged and blue border is new.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -449,7 +447,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         delay: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds to skip thumbnails download.'),
-        imgdelay: float = typer.Option(0, '--delay-image', min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds after download to skip replacing thumbnails. Grey border is unchanged and blue border is new. Viu or Chafa required.'),
+        imgdelay: float = typer.Option(0, '--delay-image', min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds after download to skip replacing displayed thumbnails. Grey border is unchanged and blue border is new.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -703,7 +701,7 @@ async def downloader(names: [(str,str)],
                     #print images
                     count = int(imgdelay/0.1)
                     if count and downloaded_once:
-                        displayImages(downloaded_dict, tmpdir)
+                        displayImages(downloaded_dict)
                         for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
                             checkDownload()
                             await asyncio.sleep(0.1)
@@ -721,12 +719,13 @@ async def downloader(names: [(str,str)],
         elif verbose:
             typer.echo(failure_format)
 
-def displayImages(downloaded: dict, tmpdir: Path):
+def displayImages(downloaded: dict):
     '''all dict has all the tuple (old, new) with the key of the thumbnail type str (the files may not exist)
        this method will display the new images with a blue border and the old with a gray border and missing as... missing
     '''
     from PIL import Image, ImageOps
     import numpy as np
+    import subprocess
     imgs = dict()
     try:
         #first create images for the thumbnails (that exist)
@@ -769,9 +768,9 @@ def displayImages(downloaded: dict, tmpdir: Path):
         combined = Image.fromarray(np.hstack(( np.asarray(box), np.asarray(combined)  )))
         #save it, print TODO if the viu library or a _good_ python sixtel library happens, replace this
         if viewer:
-            thumbnail = Path(tmpdir,'thumbnail.png')
-            combined.save(thumbnail)
-            os.system(f'{viewer} \'{thumbnail}\'')
+            with io.BytesIO() as f:
+                combined.save(f, format='png')
+                subprocess.run([viewer, '-'], input=f.getbuffer())
         else:
             combined.show()
     finally:
