@@ -651,8 +651,13 @@ async def downloader(names: [(str,str)],
                                     async with client.stream('GET', url, timeout=15) as r:
                                         #it's possible for the server to have a 404 link
                                         #because of the git repository using broken symlinks
+                                        if r.status_code == 404:
+                                            retry_count = 0 #don't try to download again
                                         r.raise_for_status()
                                         length = int(r.headers['Content-Length'])
+                                        if length < 100: #obviously corrupt 'thumbnail'
+                                            retry_count = 0
+                                            raise RequestError('')
                                         with open(temp, 'w+b') as f:
                                             if first_skip:
                                                 first_skip = False
@@ -667,7 +672,7 @@ async def downloader(names: [(str,str)],
                                                     w.write(chunk)
                                     downloaded = True
                                 except (RequestError,HTTPStatusError) as e:
-                                    retry_count = retry_count - 1
+                                    retry_count = max(0, retry_count - 1)
                                     downloaded = False
                                     if retry_count == 0:
                                         typer.echo(netfail_format + ' ' + url)
