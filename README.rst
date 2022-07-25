@@ -12,7 +12,7 @@ If you use ``libretro-fuzzall``, it will dowload for all playlists with standard
 
 Besides those differences, if no retroarch.cfg is provided, both programs try to use the default retroarch.cfg.
 
-The option --delay-image depends on `viu <https://github.com/atanunq/viu>`_ to display images on the console, otherwise it uses the system image viewer and loses console focus. Viu works better on a `sixel <https://en.wikipedia.org/wiki/Sixel>`_ compatatible shell.
+The option --skipi depends on `chafa <https://github.com/hpjansson/chafa>`_ to display images on the console, otherwise it uses the system image viewer and loses console focus. Chafa works better with a recent release and on a `sixel <https://en.wikipedia.org/wiki/Sixel>`_ or `kitty <https://sw.kovidgoyal.net/kitty/graphics-protocol/>`_ compatible shell.
 
 Example:
  ``libretro-fuzz --no-subtitle --before '_'``
@@ -53,9 +53,9 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --system <NAME libretro-fuzz only>
                         Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
-  --delay FLOAT         Delay in seconds to skip thumbnails download.
+  --skip FLOAT          Delay in seconds to skip thumbnails download.
                         [default: 0; 0<=x<=10]
-  --delay-image FLOAT   Delay in seconds after download to skip replacing
+  --skipi FLOAT         Delay in seconds after download to skip replacing
                         displayed thumbnails. Grey border is unchanged and
                         blue border is new.  [default: 0; 0<=x<=10]
   --filter GLOB         Restricts downloads to game labels globs - not paths -

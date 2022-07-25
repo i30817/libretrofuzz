@@ -344,13 +344,13 @@ def getDirectoryPath(cfg: Path, setting: str):
     dirp = os.path.expanduser(configParser['DUMMY'][setting].strip('\t ').strip('"'))
     return Path(dirp)
 
-def test_common_errors(cfg: Path, playlist: str, system: str, imgdelay: float):
+def test_common_errors(cfg: Path, playlist: str, system: str, skipi: float):
     '''returns a tuple with (playlist_dir: Path, thumbnail_dir: Path, PLAYLISTS: [Path], SYSTEMS: [str]) '''
-    if imgdelay:
+    if skipi:
         global viewer
-        viewer = which('viu')
+        viewer = which('chafa')
         if not viewer:
-            typer.echo(f'Shell image viewer viu was not found, --delay-image will attempt to display on the system image viewer and lose shell focus')
+            typer.echo(f'Shell image viewer chafa was not found, --skipi will attempt to display on the system image viewer and lose shell focus')
     if not cfg or not cfg.is_file():
         typer.echo(f'Invalid Retroarch cfg file: {cfg}')
         raise typer.Abort()
@@ -390,8 +390,8 @@ def test_common_errors(cfg: Path, playlist: str, system: str, imgdelay: float):
 def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
-        delay: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds to skip thumbnails download.'),
-        imgdelay: float = typer.Option(0, '--delay-image', min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds after download to skip replacing displayed thumbnails. Grey border is unchanged and blue border is new.'),
+        skip: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds to skip thumbnails download.'),
+        skipi: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds after download to skip replacing displayed thumbnails. Grey border is unchanged and blue border is new.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -404,7 +404,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     if playlist and not playlist.lower().endswith('.lpl'):
         playlist = playlist + '.lpl'
     
-    playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system, imgdelay)
+    playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system, skipi)
     
     custom_style = Style([
         ('answer', 'fg:green bold'),
@@ -435,15 +435,15 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
                 with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
                     names = readPlaylist(Path(playlist_dir, playlist))
                     typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
-                    await downloader(names, system, delay, imgdelay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                    await downloader(names, system, skip, skipi, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
     asyncio.run(runit(), debug=False)
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
-        delay: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds to skip thumbnails download.'),
-        imgdelay: float = typer.Option(0, '--delay-image', min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds after download to skip replacing displayed thumbnails. Grey border is unchanged and blue border is new.'),
+        skip: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds to skip thumbnails download.'),
+        skipi: float = typer.Option(0, min=0, max=10, clamp=True, metavar='FLOAT', help='Delay in seconds after download to skip replacing displayed thumbnails. Grey border is unchanged and blue border is new.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
@@ -453,11 +453,10 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
-    playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, None, None, imgdelay)
+    playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, None, None, skipi)
     
     notInSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS if os.path.basename(playlist)[:-4] not in SYSTEMS]
     for playlist, system in notInSystems:
-        typer.echo(typer.style(f' Custom playlist skipped: ', fg=typer.colors.RED, bold=True)+typer.style(f'{system}.lpl', bold=True))
         PLAYLISTS.remove(playlist)
     inSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS ]
     
@@ -465,10 +464,12 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         try:
             async with lock_keys(), AsyncClient() as client:
                 with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
+                    for playlist, system in notInSystems:
+                        typer.echo(typer.style(f'Custom playlist skipped: ', fg=typer.colors.RED, bold=True)+typer.style(f'{system}.lpl', bold=True))
                     for playlist, system in inSystems:
                         names = readPlaylist(playlist)
                         typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
-                        await downloader(names, system, delay, imgdelay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                        await downloader(names, system, skip, skipi, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
@@ -505,8 +506,8 @@ async def downloadgamenames(client, system):
 
 async def downloader(names: [(str,str)],
                system: str,
-               delay: float,
-               imgdelay: float,
+               skip: float,
+               skipi: float,
                filters: Optional[List[str]],
                nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: bool,
                before: Optional[str],
@@ -618,7 +619,7 @@ async def downloader(names: [(str,str)],
                 if not allow and missing_server_thumbs > 0:
                     typer.echo(nomerge_format)
             if allow:
-                first_delay     = True
+                first_skip     = True
                 downloaded_once = False
                 downloaded_dict = dict() #dictionary of thumbnailtype -> (old Path, new Path), paths may not exist
                 try:
@@ -645,7 +646,7 @@ async def downloader(names: [(str,str)],
                             async def download():
                                 nonlocal downloaded
                                 nonlocal retry_count
-                                nonlocal first_delay
+                                nonlocal first_skip
                                 try:
                                     async with client.stream('GET', url, timeout=15) as r:
                                         #it's possible for the server to have a 404 link
@@ -653,9 +654,9 @@ async def downloader(names: [(str,str)],
                                         r.raise_for_status()
                                         length = int(r.headers['Content-Length'])
                                         with open(temp, 'w+b') as f:
-                                            if first_delay:
-                                                first_delay = False
-                                                count = int(delay/0.1)
+                                            if first_skip:
+                                                first_skip = False
+                                                count = int(skip/0.1)
                                                 if count:
                                                     for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
                                                         checkDownload()
@@ -685,7 +686,7 @@ async def downloader(names: [(str,str)],
                             #nothing to download but we want to remove images that may be there in the case of --filter.
                             real.unlink(missing_ok=True)
                     #print images
-                    count = int(imgdelay/0.1)
+                    count = int(skipi/0.1)
                     if count and downloaded_once:
                         displayImages(downloaded_dict)
                         for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
@@ -710,7 +711,6 @@ def displayImages(downloaded: dict):
        this method will display the new images with a blue border and the old with a gray border and missing as... missing
     '''
     from PIL import Image, ImageOps
-    import numpy as np
     import subprocess
     imgs = dict()
     try:
@@ -722,12 +722,12 @@ def displayImages(downloaded: dict):
             elif old.exists():
                 imgs[k] = ImageOps.expand(Image.open(old).convert('RGBA'), border=(2,2,2,2), fill=(128,128,128))
         #find the minimum shape
-        min_shape = sorted( [(np.sum(i.size), i.size ) for i in imgs.values()])[0][1]
+        min_shape = sorted( [(i.size[0]+i.size[1], i.size ) for i in imgs.values()])[0][1]
         #then create the dummy transparent images for those that don't exist/weren't in the server
         keys = imgs.keys()
         for ttype in ['Named_Boxarts', 'Named_Titles', 'Named_Snaps']:
             if ttype not in keys:
-                imgs[ttype] = Image.new('RGBA', min_shape, (255, 0, 0, 0))
+                imgs[ttype] = Image.new('RGBA', min_shape, (0, 0, 0, 0))
         #create a combined image for the right side after resizing both to have the same width, keeping ratio
         title = imgs['Named_Titles']
         # preserve aspect ratio
@@ -742,7 +742,10 @@ def displayImages(downloaded: dict):
             y = max(round(y * min_shape[0] / x), 1)
             x = round(min_shape[0])
         snap = snap.resize((x, y))
-        combined = Image.fromarray(np.vstack(( np.asarray(title), np.asarray(snap)  )))
+        #create a 'paste' image
+        combined = Image.new('RGBA', (x, title.size[1]+snap.size[1]))
+        combined.paste(title, box=(0,0))
+        combined.paste(snap, box=(0, title.size[1]))
         #create a image for the boxart, that has a height based on the combined image height then combine them
         box  = imgs['Named_Boxarts']
         csize = combined.size
@@ -751,14 +754,17 @@ def displayImages(downloaded: dict):
             x = max(round(x * csize[1] / y), 1)
             y = round(csize[1])
         box = box.resize((x, y))
-        combined = Image.fromarray(np.hstack(( np.asarray(box), np.asarray(combined)  )))
-        #save it, print TODO if the viu library or a _good_ python sixtel library happens, replace this
+        #create a 'paste' image
+        combined2 = Image.new('RGBA', (box.size[0]+combined.size[0], y))
+        combined2.paste(box, box=(0,0))
+        combined2.paste(combined, box=(box.size[0],0))
+        #save it, print TODO if a _good_ python sixtel library happens, replace this
         if viewer:
             with io.BytesIO() as f:
-                combined.save(f, format='png')
+                combined2.save(f, format='png')
                 subprocess.run([viewer, '-'], input=f.getbuffer())
         else:
-            combined.show()
+            combined2.show()
     finally:
         for i in imgs.values():
             i.close()
