@@ -440,9 +440,6 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
-        except RuntimeError as err:
-            typer.echo(err)
-            raise typer.Abort()
     asyncio.run(runit(), debug=False)
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
@@ -461,28 +458,19 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
     
     notInSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS if os.path.basename(playlist)[:-4] not in SYSTEMS]
     for playlist, system in notInSystems:
-        typer.echo(typer.style(f'Custom playlist skipped: ', fg=typer.colors.RED, bold=True)+typer.style(f'{system}.lpl', bold=True))
+        typer.echo(typer.style(f' Custom playlist skipped: ', fg=typer.colors.RED, bold=True)+typer.style(f'{system}.lpl', bold=True))
         PLAYLISTS.remove(playlist)
     inSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS ]
     
     async def runit():
-        there_was_a_error = []
         try:
             async with lock_keys():
                 with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
                     async with AsyncClient() as client:
                         for playlist, system in inSystems:
-                            try:
-                                names = readPlaylist(playlist)
-                                typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
-                                await downloader(names, system, delay, imgdelay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
-                            except RuntimeError as err:
-                                there_was_a_error.append((playlist,err))
-            if there_was_a_error:
-                typer.echo('Playlists returned errors when trying to download thumbnails:')
-                for playlist, err in there_was_a_error:
-                    typer.echo(err)
-                raise typer.Abort()
+                            names = readPlaylist(playlist)
+                            typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
+                            await downloader(names, system, delay, imgdelay, filters, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
