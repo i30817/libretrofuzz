@@ -12,7 +12,7 @@ If you use ``libretro-fuzzall``, it will dowload for all playlists with standard
 
 Besides those differences, if no retroarch.cfg is provided, both programs try to use the default retroarch.cfg.
 
-The option --skipi depends on `chafa <https://github.com/hpjansson/chafa>`_ to display images on the console, otherwise it uses the system image viewer and loses console focus. Chafa works better with a recent release and on a `sixel <https://en.wikipedia.org/wiki/Sixel>`_ or `kitty <https://sw.kovidgoyal.net/kitty/graphics-protocol/>`_ compatible shell.
+If `chafa <https://github.com/hpjansson/chafa>`_ is installed, the program will display new thumbnails of a game, with grey border for images already in use and with green border for new images. Chafa works better with a recent release and on a `sixel <https://en.wikipedia.org/wiki/Sixel>`_ or `kitty <https://sw.kovidgoyal.net/kitty/graphics-protocol/>`_ compatible shell.
 
 Example:
  ``libretro-fuzz --no-subtitle --before '_'``
@@ -53,29 +53,28 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --system <NAME libretro-fuzz only>
                         Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
-  --skip FLOAT          Delay in seconds to skip thumbnails download.
-                        [default: 0; 0<=x<=10]
-  --skipi FLOAT         Delay in seconds after download to skip replacing
-                        displayed thumbnails. Grey border is unchanged and
-                        blue border is new.  [default: 0; 0<=x<=10]
+  --delay-after FLOAT   Seconds after download to skip replacing thumbnails.
+                        No effect if called with --no-image.  [0<=x<=10]
+  --delay FLOAT         Seconds to skip thumbnails download.  [0<=x<=10]
   --filter GLOB         Restricts downloads to game labels globs - not paths -
                         in the playlist, can be used multiple times and
                         matches reset thumbnails, --filter '*' downloads all.
+  --no-image            Don't show images even with chafa installed.
   --no-merge            Disables missing thumbnails download for a label if
                         there is at least one in cache to avoid mixing
                         thumbnails from different server directories on
                         repeated calls. No effect if called with --filter.
   --no-fail             Download any score. To restrict or retry use --filter.
-  --no-meta             Ignores () delimited metadata and may cause false
-                        positives. Forced with --before.
-  --hack                Matches [] delimited metadata and may cause false
-                        positives, Best used if the hack has thumbnails.
-                        Ignored with --before.
   --no-subtitle         Remove subtitle after ' - ' or ': ' for mismatched
                         labels and server names. ':' can't occur in server
                         names, so if the server has 'Name\_ subtitle.png' and
                         not 'Name - subtitle.png' (uncommon), this option
                         doesn't help. To restrict or retry use --filter.
+  --no-meta             Ignores () delimited metadata and may cause false
+                        positives. Forced with --before.
+  --hack                Matches [] delimited metadata and may cause false
+                        positives, Best used if the hack has thumbnails.
+                        Ignored with --before.
   --before TEXT         Use only the part of the label before TEXT to match.
                         TEXT may not be inside of brackets of any kind, may
                         cause false positives but some labels do not have
