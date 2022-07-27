@@ -38,6 +38,9 @@ from questionary import Style, select
 from httpx import RequestError, HTTPStatusError, Client, AsyncClient
 from tqdm import trange, tqdm
 
+#makes a class with these fields, which are the subdir names on the server system dir of the types of thumbnails
+Thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Titles', 'Named_Snaps'])
+
 ###########################################
 ########### SCRIPT SETTINGS ###############
 ###########################################
@@ -72,9 +75,17 @@ else: #all the rest based on linux. If they arent based on linux, they'll try th
     else:
         CONFIG = Path(Path.home(), '.config', 'retroarch', 'retroarch.cfg')
 
-#-------------------------------------------------------------
-#keyboard listener, to interrupt downloads or stop the program
-#-------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#keyboard listener, and exceptions to interrupt downloads or stop the program
+#-----------------------------------------------------------------------------
+
+class PlaylistStop(Exception):
+    '''this is thrown when http status 521 happens.
+    cloudflare uses when it can't find the server.
+    Note, parts of server might still be available
+    so this only stops a playlist in libretro-fuzzall'''
+    def __init__(self):
+        super().__init__()
 class StopDownload(Exception):
     def __init__(self):
         super().__init__()
@@ -327,15 +338,33 @@ class RzipReader(object):
             else:
                 yield file
 
-def readPlaylist(playlist: Path):
+def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails_dir: Path):
+    '''create directories that are children of temp_dir and thumbnails_dir that have the
+       subdirs needed to move files created on them from one to the other, so you don't
+       need to care to create directories for every file processed.
+        
+       return a list of game names and 'db_names' (stripped of extension): [(names: str,db_names: str)]
+       db_names without extension are the system directory names libretro searchs for the thumbnail.
+    '''
     names = []
+    dbs   = set()
     with RzipReader(playlist).open() as f:
         data = json.load(f)
         for r in data['items']:
             assert 'label' in r and r['label'].strip() != '', f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no label'
             assert 'db_name' in r and r['db_name'].endswith('.lpl'), f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no valid db_name'
             #add the label name and the db name (it's a playlist name, minus the extension '.lpl')
-            names.append( (r['label'], r['db_name'][:-4]) )
+            db = r['db_name'][:-4]
+            dbs.add(db)
+            names.append( (r['label'], db) )
+    #create the directories we will 'maybe' need. This is not so problematic
+    #as it seems since likely len(dbs) == 1, so 6 directories per playlist
+    #versus having os.makedirs called hundred of times for larger playlists
+    #this is vulnerable to MitM deletion but everything is with directories
+    for parent in [temp_dir, thumbnails_dir]:
+        for db in dbs:
+            for dirname in Thumbs._fields:
+                os.makedirs(Path(parent, db, dirname), exist_ok=True)
     return names
 
 def getDirectoryPath(cfg: Path, setting: str):
@@ -383,7 +412,7 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
     if system and system not in SYSTEMS:
         typer.echo(f'The user provided system name {system} does not match any remote thumbnail system names')
         raise typer.Abort()
-    return (playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS)
+    return (playlist_dir, thumbnails_directory, sorted(PLAYLISTS), sorted(SYSTEMS))
 
 
 #####################
@@ -392,8 +421,8 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
 def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
-        iskip: Optional[float] = typer.Option(None, '--delay-after', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails. No effect if called with --no-image.'),
-        skip: Optional[float] = typer.Option(None, '--delay', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download.'),
+        wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails. No effect if called with --no-image.'),
+        wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         noimage: bool = typer.Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
@@ -433,20 +462,21 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
             async with lock_keys(), AsyncClient() as client:
                 #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
                 #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
-                #it may seem strange to use a tmp dir for a single file, but mktemp (the name, not open file version) is deprecated because of
-                #a security risk of MitM. Not sure if this helps with that, but at least it won't stop working in the future once that is removed.
                 with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
-                    names = readPlaylist(Path(playlist_dir, playlist))
                     typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
-                    await downloader(names, system, skip, iskip, filters, noimage, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                    names = readPlaylistAndPrepareDirectories(Path(playlist_dir, playlist), tmpdir, thumbnails_directory)
+                    await downloader(names, system, wait_before, wait_after, filters, noimage, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+        except PlaylistStop as e:
+            typer.echo(typer.style(f'\nCloudflare is down for {system}\n', fg=typer.colors.RED, bold=True))
+            raise typer.Exit(code=1)
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
     asyncio.run(runit(), debug=False)
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
-        iskip: Optional[float] = typer.Option(None, '--delay-after', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails. No effect if called with --no-image.'),
-        skip: Optional[float] = typer.Option(None, '--delay', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download.'),
+        wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails. No effect if called with --no-image.'),
+        wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         noimage: bool = typer.Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
@@ -471,9 +501,12 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
                     for playlist, system in notInSystems:
                         typer.echo(typer.style(f'Custom playlist skipped: ', fg=typer.colors.RED, bold=True)+typer.style(f'{system}.lpl', bold=True))
                     for playlist, system in inSystems:
-                        names = readPlaylist(playlist)
                         typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
-                        await downloader(names, system, skip, iskip, filters, noimage, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                        names = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_directory)
+                        try:
+                            await downloader(names, system, wait_before, wait_after, filters, noimage, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                        except PlaylistStop as e:
+                            typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
         except StopProgram as e:
             typer.echo(f'\nCancelled by user\n')
             raise typer.Exit()
@@ -497,6 +530,8 @@ async def downloadgamenames(client, system):
             #not found is ok, since some server system directories do not have all the subdirectories
             if r.status_code == 404:
                 l1 = {}
+            elif r.status_code == 521:
+                raise PlaylistStop()
             else:
                 #will go to except if there is a another error
                 r.raise_for_status()
@@ -504,14 +539,14 @@ async def downloadgamenames(client, system):
                 l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
             args.append(l1)
     except (RequestError,HTTPStatusError) as err:
-        typer.echo(f'Could not get the remote thumbnail filenames')
+        typer.echo(str(err))
         raise typer.Abort()
     return args
 
 async def downloader(names: [(str,str)],
                system: str,
-               skip: Optional[float],
-               iskip: Optional[float],
+               wait_before: Optional[float],
+               wait_after: Optional[float],
                filters: Optional[List[str]],
                noimage : bool, nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: bool,
                before: Optional[str],
@@ -523,8 +558,7 @@ async def downloader(names: [(str,str)],
     if len(names) == 0:
         return
     
-    thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Titles', 'Named_Snaps'])
-    thumbs = thumbs._make( await downloadgamenames(client, system) )
+    thumbs = Thumbs._make( await downloadgamenames(client, system) )
     
     #before implies that the names of the playlists may be cut, so the hack and meta matching must be disabled
     if before:
@@ -598,23 +632,23 @@ async def downloader(names: [(str,str)],
         name_format    = f'{nameaux} -> {norm_thumbnail}' if verbose else f'{name} -> {thumbnail}'
         success_format = f'{prefix_format}{typer.style("Success",   fg=typer.colors.GREEN, bold=True)}: {name_format}'
         failure_format = f'{prefix_format}{typer.style("Failure",     fg=typer.colors.RED, bold=True)}: {name_format}'
-        netfail_format = f'{prefix_format}{typer.style("Missing",     fg=typer.colors.RED, bold=True)}:'
+        missing_format = f'{prefix_format}{typer.style("Missing",     fg=typer.colors.RED, bold=True)}:'
         cancel_format  = f'{prefix_format}{typer.style("Skipped",        fg=(135,135,135), bold=True)}: {name_format}'
         nomerge_format = f'{zeroth_format}{typer.style("Nomerge",        fg=(128,128,128), bold=True)}: {name_format}'
         getting_format = f'{prefix_format}{typer.style("Getting",    fg=typer.colors.BLUE, bold=True)}: {name_format}'
         waiting_format = f'{prefix_format}{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {name_format}' '{bar:-9b} {remaining_s:2.1f}s: {bar:10u}'
         if thumbnail and ( i_max >= CONFIDENCE or nofail ):
-            #Thumbnails download destination is based on the db_name playlist on each and every playlist entry.
-            #I'm not sure if those can differ in the same playlist, but to be safe, create them in each iteration of the loop.
-            thumb_dir = Path(thumbnails_directory,destination)
+            #these parent directories were created when reading the playlist, more efficient than doing it a playlist game loop
+            real_thumb_dir = Path(thumbnails_directory,destination)
+            down_thumb_dir = Path(tmpdir,destination)
             allow = True
             if not filters and nomerge:
                 #to implement no-merge you have to disable downloads on 'at least one' thumbnail (including user added ones)
                 missing_thumbs = 0
                 missing_server_thumbs = 0
-                for dirname in thumbs._fields:
-                    p = Path(thumb_dir, dirname, name+'.png')
-                    if not p.exists():
+                for dirname in Thumbs._fields:
+                    real = Path(real_thumb_dir, dirname, name + '.png')
+                    if not real.exists():
                         missing_thumbs += 1
                         if thumbnail in getattr(thumbs, dirname) or thumbnail2 in getattr(thumbs, dirname):
                             missing_server_thumbs += 1
@@ -623,78 +657,30 @@ async def downloader(names: [(str,str)],
                 if not allow and missing_server_thumbs > 0:
                     typer.echo(nomerge_format)
             if allow:
-                first_skip     = skip is not None
+                first_wait      = wait_before is not None
                 downloaded_once = False
                 downloaded_dict = dict() #dictionary of thumbnailtype -> (old Path, new Path), paths may not exist
                 try:
-                    for dirname in thumbs._fields:
-                        parent = Path(thumb_dir, dirname)
-                        real = Path(parent, name + '.png')
-                        tmp_parent = Path(tmpdir, dirname)
-                        temp = Path(tmp_parent, name + '.png')
+                    for dirname in Thumbs._fields:
+                        real = Path(real_thumb_dir, dirname, name + '.png')
+                        temp = Path(down_thumb_dir, dirname, name + '.png')
                         downloaded_dict[dirname] = (real, temp)
                         #something to download
-                        thumbset = getattr(thumbs, dirname)
-                        url = None
-                        if thumbnail in thumbset:
-                            url = thumbset[thumbnail]
-                        elif thumbnail2 in thumbset:
-                            url = thumbset[thumbnail2]
-                        #with filters/reset you always download, and without only if it's doesn't exist already.
+                        thumbmap = getattr(thumbs, dirname)
+                        url = thumbmap[thumbnail] if thumbnail in thumbmap else thumbmap.get(thumbnail2, None)
+                        #with filters/reset you always download, and without only if it doesn't exist already.
                         if url and (filters or not real.exists()):
-                            os.makedirs(parent, exist_ok=True)
-                            os.makedirs(tmp_parent, exist_ok=True)
-                            thumbnail_type = dirname[6:-1]
-                            thumb_format   =  f'{getting_format}' '{bar:-9b}' f'{thumbnail_type}' ' {percentage:3.0f}%: {bar:10u}'
-                            retry_count = MAX_RETRIES
-                            downloaded = False
-                            async def download():
-                                nonlocal downloaded
-                                nonlocal retry_count
-                                nonlocal first_skip
-                                try:
-                                    async with client.stream('GET', url, timeout=15) as r:
-                                        #it's possible for the server to have a 404 link
-                                        #because of the git repository using broken symlinks
-                                        if r.status_code == 404:
-                                            retry_count = 0 #don't try to download again
-                                        r.raise_for_status()
-                                        length = int(r.headers['Content-Length'])
-                                        if length < 100: #obviously corrupt 'thumbnail'
-                                            retry_count = 0
-                                            raise RequestError('')
-                                        with open(temp, 'w+b') as f:
-                                            if first_skip:
-                                                first_skip = False
-                                                count = int(skip/0.1)
-                                                for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
-                                                    checkDownload()
-                                                    await asyncio.sleep(0.1)
-                                            with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=thumb_format, colour='BLUE', leave=False) as w:
-                                                async for chunk in r.aiter_raw(4096):
-                                                    checkDownload()
-                                                    w.write(chunk)
-                                    downloaded = True
-                                except (RequestError,HTTPStatusError) as e:
-                                    retry_count = max(0, retry_count - 1)
-                                    downloaded = False
-                                    if retry_count == 0:
-                                        typer.echo(netfail_format + ' ' + url)
-                                        temp.unlink(missing_ok=True)
-                            while not downloaded and retry_count > 0:
-                                await download()
-                            if downloaded:
+                            download_format = f'{getting_format}' '{bar:-9b}' f'{dirname[6:-1]}' ' {percentage:3.0f}%: {bar:10u}'
+                            if await download(client,url,temp,download_format,missing_format,waiting_format,first_wait,wait_before,MAX_RETRIES):
+                                first_wait = False
                                 downloaded_once = True
                         elif filters:
                             #nothing to download but we want to remove images that may be there in the case of --filter.
                             real.unlink(missing_ok=True)
                     if not noimage and viewer and downloaded_once:
                         displayImages(downloaded_dict)
-                        if iskip is not None:
-                            count = int(iskip/0.1)
-                            for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
-                                checkDownload()
-                                await asyncio.sleep(0.1)
+                        if wait_after is not None:
+                            await printwait(wait_after, waiting_format)
                 except StopProgram as e:
                     typer.echo(cancel_format)
                     raise e
@@ -709,8 +695,47 @@ async def downloader(names: [(str,str)],
         elif verbose:
             typer.echo(failure_format)
 
+async def printwait(wait : Optional[float], waiting_format: str):
+    count = int(wait/0.1)
+    for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
+        checkDownload()
+        await asyncio.sleep(0.1)
+
+async def download(client, url, destination, download_format, missing_format, waiting_format, first_wait, wait_before, max_retries):
+    '''returns True if downloaded. To download, it must have waited, if first_wait is True. Exceptions may happen instead of returning False, but they
+    are all caught outside the caller loop of thumbnail types that downloads, so the first_wait guard gets reset again and only waits once per game'''
+    while True:
+        try:
+            async with client.stream('GET', url, timeout=15) as r:
+                if r.status_code == 521: #cloudflare exploded, skip the whole playlist
+                    raise PlaylistStop()
+                if r.status_code == 404: #broken image or symlink link, skip just this thumb
+                    typer.echo(missing_format + ' ' + url)
+                    return False
+                r.raise_for_status()     #error before reading the header goes into retrying
+                length = int(r.headers['Content-Length'])
+                if length < 100:         #obviously corrupt 'thumbnail', skip this thumb
+                    typer.echo(missing_format + ' ' + url)
+                    return False
+                with open(destination, 'w+b') as f:
+                    if first_wait:
+                        await printwait(wait_before, waiting_format)
+                    with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=download_format, colour='BLUE', leave=False) as w:
+                        async for chunk in r.aiter_raw(4096):
+                            checkDownload()
+                            w.write(chunk)
+            return True
+        except IOError as e:
+            typer.echo(str(e))
+            raise typer.Exit(code=1)            
+        except (RequestError,HTTPStatusError) as e:
+            if max_retries <= 0:
+                typer.echo(str(e))
+                raise typer.Exit(code=1)
+            max_retries -= 1
+
 def displayImages(downloaded: dict):
-    '''all dict has all the tuple (old, new) with the key of the thumbnail type str (the files may not exist)
+    '''dict has all the tuple (old, new) with the key of the thumbnail type str (the files may not exist)
        this method will display the new images with a green border and the old with a gray border and missing as... missing
     '''
     imgs = dict()
