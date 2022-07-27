@@ -640,7 +640,8 @@ async def downloader(names: [(str,str)],
                             url = thumbset[thumbnail]
                         elif thumbnail2 in thumbset:
                             url = thumbset[thumbnail2]
-                        if url:
+                        #with filters/reset you always download, and without only if it's doesn't exist already.
+                        if url and (filters or not real.exists()):
                             os.makedirs(parent, exist_ok=True)
                             os.makedirs(tmp_parent, exist_ok=True)
                             thumbnail_type = dirname[6:-1]
@@ -680,14 +681,8 @@ async def downloader(names: [(str,str)],
                                     if retry_count == 0:
                                         typer.echo(netfail_format + ' ' + url)
                                         temp.unlink(missing_ok=True)
-                            #with filters/reset you always download, but without,
-                            #you only download if the file doesn't exist already (and isn't downloaded to temp already)
-                            if filters:
-                                while not downloaded and retry_count > 0:
-                                    await download()
-                            else:
-                                while not downloaded and not real.exists() and retry_count > 0:
-                                    await download()
+                            while not downloaded and retry_count > 0:
+                                await download()
                             if downloaded:
                                 downloaded_once = True
                         elif filters:
