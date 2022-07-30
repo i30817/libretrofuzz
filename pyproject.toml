@@ -12,7 +12,7 @@ python = "^3.8"
 beautifulsoup4 = "^4.10.0"
 questionary = "^1.10.0"
 typer = {extras = ["all"], version = "^0.5.0"}
-rapidfuzz = "2.2.0"
+rapidfuzz = "^2.4.2"
 httpx = "^0.23.0"
 tqdm = "^4.64.0"
 prompt_toolkit = "^3.0.30"
