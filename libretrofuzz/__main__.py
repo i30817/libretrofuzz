@@ -342,7 +342,7 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
     '''create directories that are children of temp_dir and thumbnails_dir that have the
        subdirs needed to move files created on them from one to the other, so you don't
        need to care to create directories for every file processed.
-        
+       
        return a list of game names and 'db_names' (stripped of extension): [(names: str,db_names: str)]
        db_names without extension are the system directory names libretro searchs for the thumbnail.
     '''
@@ -384,22 +384,22 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
         typer.echo(f'Shell image viewer chafa was not found')
     if not cfg or not cfg.is_file():
         typer.echo(f'Invalid Retroarch cfg file: {cfg}')
-        raise typer.Abort()
+        raise typer.Exit(code=1)
     thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
     if not thumbnails_directory.is_dir():
         typer.echo(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
-        raise typer.Abort()
+        raise typer.Exit(code=1)
     playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
     if not playlist_dir.is_dir():
         typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
-        raise typer.Abort()
+        raise typer.Exit(code=1)
     PLAYLISTS = list(playlist_dir.glob('./*.lpl'))
     if not PLAYLISTS:
         typer.echo(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
-        raise typer.Abort()
+        raise typer.Exit(code=1)
     if playlist and Path(playlist_dir, playlist) not in PLAYLISTS:
         typer.echo(f'Unknown user provided playlist: {playlist}')
-        raise typer.Abort()
+        raise typer.Exit(code=1)
 
     try:
         with Client() as client:
@@ -408,10 +408,10 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
         SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
     except (RequestError,HTTPStatusError) as err:
         typer.echo(f'Could not get the remote thumbnail system names')
-        raise typer.Abort()
+        raise typer.Exit(code=1)
     if system and system not in SYSTEMS:
         typer.echo(f'The user provided system name {system} does not match any remote thumbnail system names')
-        raise typer.Abort()
+        raise typer.Exit(code=1)
     return (playlist_dir, thumbnails_directory, sorted(PLAYLISTS), sorted(SYSTEMS))
 
 
@@ -467,10 +467,10 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
                     names = readPlaylistAndPrepareDirectories(Path(playlist_dir, playlist), tmpdir, thumbnails_directory)
                     await downloader(names, system, wait_before, wait_after, filters, noimage, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
         except PlaylistStop as e:
-            typer.echo(typer.style(f'\nCloudflare is down for {system}\n', fg=typer.colors.RED, bold=True))
+            typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
             raise typer.Exit(code=1)
         except StopProgram as e:
-            typer.echo(f'\nCancelled by user\n')
+            typer.echo(f'Cancelled by user')
             raise typer.Exit()
     asyncio.run(runit(), debug=False)
 
@@ -508,7 +508,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
                         except PlaylistStop as e:
                             typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
         except StopProgram as e:
-            typer.echo(f'\nCancelled by user\n')
+            typer.echo(f'Cancelled by user')
             raise typer.Exit()
     asyncio.run(runit(), debug=False)
 
@@ -540,7 +540,7 @@ async def downloadgamenames(client, system):
             args.append(l1)
     except (RequestError,HTTPStatusError) as err:
         typer.echo(str(err))
-        raise typer.Abort()
+        raise typer.Exit(code=1)
     return args
 
 async def downloader(names: [(str,str)],
@@ -811,4 +811,4 @@ def fuzzall():
 
 if __name__ == "__main__":
     typer.echo('Please run libretro-fuzz or libretro-fuzzall instead of running the script directly')
-    raise typer.Abort()
+    raise typer.Exit(code=1)
