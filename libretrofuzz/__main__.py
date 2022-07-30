@@ -436,7 +436,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     if playlist and not playlist.lower().endswith('.lpl'):
         playlist = playlist + '.lpl'
     
-    playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system)
+    playlist_dir, thumbnails_dir, PLAYLISTS, SYSTEMS = test_common_errors(cfg, playlist, system)
     
     custom_style = Style([
         ('answer', 'fg:green bold'),
@@ -462,10 +462,10 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
             async with lock_keys(), AsyncClient() as client:
                 #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
                 #parent directory of this temp dir is the same as the retroarch thumbnail dir to make moving the file just renaming it, not copy it
-                with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
+                with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_dir) as tmpdir:
                     typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
-                    names = readPlaylistAndPrepareDirectories(Path(playlist_dir, playlist), tmpdir, thumbnails_directory)
-                    await downloader(names, system, wait_before, wait_after, filters, noimage, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                    names = readPlaylistAndPrepareDirectories(Path(playlist_dir, playlist), tmpdir, thumbnails_dir)
+                    await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
         except PlaylistStop as e:
             typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
             raise typer.Exit(code=1)
@@ -487,7 +487,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
         verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output (score >= 100 is succesful).')
     ):
-    playlist_dir, thumbnails_directory, PLAYLISTS, SYSTEMS = test_common_errors(cfg, None, None)
+    playlist_dir, thumbnails_dir, PLAYLISTS, SYSTEMS = test_common_errors(cfg, None, None)
     
     notInSystems = [ (playlist, os.path.basename(playlist)[:-4]) for playlist in PLAYLISTS if os.path.basename(playlist)[:-4] not in SYSTEMS]
     for playlist, system in notInSystems:
@@ -497,14 +497,14 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
     async def runit():
         try:
             async with lock_keys(), AsyncClient() as client:
-                with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_directory) as tmpdir:
+                with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_dir) as tmpdir:
                     for playlist, system in notInSystems:
                         typer.echo(typer.style(f'Custom playlist skipped: ', fg=typer.colors.RED, bold=True)+typer.style(f'{system}.lpl', bold=True))
                     for playlist, system in inSystems:
                         typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
-                        names = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_directory)
+                        names = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
                         try:
-                            await downloader(names, system, wait_before, wait_after, filters, noimage, nomerge, nofail, nometa, hack, nosubtitle, verbose, before, tmpdir, thumbnails_directory, client)
+                            await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
                         except PlaylistStop as e:
                             typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
         except StopProgram as e:
@@ -551,7 +551,7 @@ async def downloader(names: [(str,str)],
                noimage : bool, nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: bool,
                before: Optional[str],
                tmpdir: Path,
-               thumbnails_directory: Path,
+               thumbnails_dir: Path,
                client: AsyncClient
                ):
     #not a error to pass a empty playlist
@@ -639,7 +639,7 @@ async def downloader(names: [(str,str)],
         waiting_format = f'{prefix_format}{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {name_format}' '{bar:-9b} {remaining_s:2.1f}s: {bar:10u}'
         if thumbnail and ( i_max >= CONFIDENCE or nofail ):
             #these parent directories were created when reading the playlist, more efficient than doing it a playlist game loop
-            real_thumb_dir = Path(thumbnails_directory,destination)
+            real_thumb_dir = Path(thumbnails_dir,destination)
             down_thumb_dir = Path(tmpdir,destination)
             allow = True
             if not filters and nomerge:
