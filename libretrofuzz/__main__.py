@@ -79,7 +79,7 @@ else: #all the rest based on linux. If they arent based on linux, they'll try th
 #keyboard listener, and exceptions to interrupt downloads or stop the program
 #-----------------------------------------------------------------------------
 
-class PlaylistStop(Exception):
+class StopPlaylist(Exception):
     '''this is thrown when http status 521 happens.
     cloudflare uses when it can't find the server.
     Note, parts of server might still be available
@@ -466,7 +466,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
                     typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
                     names = readPlaylistAndPrepareDirectories(Path(playlist_dir, playlist), tmpdir, thumbnails_dir)
                     await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
-        except PlaylistStop as e:
+        except StopPlaylist as e:
             typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
             raise typer.Exit(code=1)
         except StopProgram as e:
@@ -505,7 +505,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
                         names = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
                         try:
                             await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
-                        except PlaylistStop as e:
+                        except StopPlaylist as e:
                             typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
         except StopProgram as e:
             typer.echo(f'Cancelled by user')
@@ -531,7 +531,7 @@ async def downloadgamenames(client, system):
             if r.status_code == 404:
                 l1 = {}
             elif r.status_code == 521:
-                raise PlaylistStop()
+                raise StopPlaylist()
             else:
                 #will go to except if there is a another error
                 r.raise_for_status()
@@ -708,7 +708,7 @@ async def download(client, url, destination, download_format, missing_format, wa
         try:
             async with client.stream('GET', url, timeout=15) as r:
                 if r.status_code == 521: #cloudflare exploded, skip the whole playlist
-                    raise PlaylistStop()
+                    raise StopPlaylist()
                 if r.status_code == 404: #broken image or symlink link, skip just this thumb
                     typer.echo(missing_format + ' ' + url)
                     return False
