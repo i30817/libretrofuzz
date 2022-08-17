@@ -348,15 +348,27 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
     '''
     names = []
     dbs   = set()
-    with RzipReader(playlist).open() as f:
-        data = json.load(f)
-        for r in data['items']:
-            assert 'label' in r and r['label'].strip() != '', f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no label'
-            assert 'db_name' in r and r['db_name'].endswith('.lpl'), f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no valid db_name'
-            #add the label name and the db name (it's a playlist name, minus the extension '.lpl')
-            db = r['db_name'][:-4]
+    try:
+        with RzipReader(playlist).open() as f:
+            data = json.load(f)
+            for r in data['items']:
+                assert 'label' in r and r['label'].strip() != '', f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no label'
+                assert 'db_name' in r and r['db_name'].endswith('.lpl'), f'\n{json.dumps(r,indent=4)} of playlist {playlist} has no valid db_name'
+                #add the label name and the db name (it's a playlist name, minus the extension '.lpl')
+                db = r['db_name'][:-4]
+                dbs.add(db)
+                names.append( (r['label'], db) )
+    except json.JSONDecodeError:
+        #older version of the playlist format, this has absolutely no error correction
+        #the number of extra lines after the game entries can be between 0 and 5, because
+        #retroarch will simply ignore lines missing at the end.
+        data = playlist.open().readlines()
+        gamelineslen = len(data) - (len(data) % 6)
+        for i in range(0,gamelineslen, 6):
+            name = data[i+1].strip()
+            db   = data[i+5].strip()[:-4]
             dbs.add(db)
-            names.append( (r['label'], db) )
+            names.append( (name, db) )
     #create the directories we will 'maybe' need. This is not so problematic
     #as it seems since likely len(dbs) == 1, so 6 directories per playlist
     #versus having os.makedirs called hundred of times for larger playlists
