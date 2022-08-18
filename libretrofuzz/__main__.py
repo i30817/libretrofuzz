@@ -334,9 +334,9 @@ class RzipReader(object):
                         bsize = file.read(4)
                     assert checksize == totalsize, f'{checksize} != {totalsize}'
                     f.seek(0) #reset for the next reader.
-                    yield f
+                    yield io.TextIOWrapper(f)
             else:
-                yield file
+                yield io.TextIOWrapper(file)
 
 def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails_dir: Path):
     '''create directories that are children of temp_dir and thumbnails_dir that have the
@@ -362,17 +362,18 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
         #older version of the playlist format, this has absolutely no error correction
         #the number of extra lines after the game entries can be between 0 and 5, because
         #retroarch will simply ignore lines missing at the end.
-        data = playlist.open().readlines()
-        gamelineslen = len(data) - (len(data) % 6)
-        for i in range(0,gamelineslen, 6):
-            name = data[i+1].strip()
-            db   = data[i+5].strip()[:-4]
-            dbs.add(db)
-            names.append( (name, db) )
+        with RzipReader(playlist).open() as f:
+            data = f.readlines()
+            gamelineslen = len(data) - (len(data) % 6)
+            for i in range(0,gamelineslen, 6):
+                name = data[i+1].strip()
+                db   = data[i+5].strip()[:-4]
+                dbs.add(db)
+                names.append( (name, db) )
     #create the directories we will 'maybe' need. This is not so problematic
     #as it seems since likely len(dbs) == 1, so 6 directories per playlist
     #versus having os.makedirs called hundred of times for larger playlists
-    #this is vulnerable to MitM deletion but everything is with directories
+    #this is vulnerable to ToCToU deletion but everything is with directories
     for parent in [temp_dir, thumbnails_dir]:
         for db in dbs:
             for dirname in Thumbs._fields:
