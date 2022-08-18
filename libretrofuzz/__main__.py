@@ -359,15 +359,15 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
                 dbs.add(db)
                 names.append( (r['label'], db) )
     except json.JSONDecodeError:
-        #older version of the playlist format, this has absolutely no error correction
-        #the number of extra lines after the game entries can be between 0 and 5, because
-        #retroarch will simply ignore lines missing at the end.
+        #older version of the playlist format, this has no error correction; the extra lines after the
+        #game entries can be between 0 and 5, because retroarch will ignore lines missing at the end.
         with RzipReader(playlist).open() as f:
-            data = f.readlines()
+            #make sure not to count empty lines, which might break the assumptions made here
+            data = [ x for x in map(str.strip, f.readlines()) if x ]
             gamelineslen = len(data) - (len(data) % 6)
             for i in range(0,gamelineslen, 6):
-                name = data[i+1].strip()
-                db   = data[i+5].strip()[:-4]
+                name = data[i+1]
+                db   = data[i+5][:-4]
                 dbs.add(db)
                 names.append( (name, db) )
     #create the directories we will 'maybe' need. This is not so problematic
