@@ -67,7 +67,7 @@ if sys.platform == 'win32': #this is for 64 bits too
             if var:
                 CONFIG = Path(var, 'RetroArch', 'retroarch.cfg')
 elif sys.platform == 'darwin':
-    CONFIG = Path(Path.home(), 'Library', 'Application Support', 'RetroArch', 'retroarch.cfg')
+    CONFIG = Path(Path.home(), 'Library', 'Application Support', 'RetroArch', 'config', 'retroarch.cfg')
 else: #all the rest based on linux. If they arent based on linux, they'll try the else and fail harmlessly later
     var = os.getenv('XDG_CONFIG_HOME')
     if var:
