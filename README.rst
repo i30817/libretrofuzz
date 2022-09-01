@@ -45,7 +45,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   
                         Windows default: ``%APPDATA%/RetroArch/retroarch.cfg``
   
-                        MacOS default:   ``~/Library/Application Support/RetroArch/retroarch.cfg``
+                        MacOS default:   ``~/Library/Application Support/RetroArch/config/retroarch.cfg``
   
   --playlist <NAME libretro-fuzz only>
                         Playlist name with labels used for thumbnail fuzzy
@@ -54,8 +54,8 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
                         Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
   --delay-after FLOAT   Seconds after download to skip replacing thumbnails.
-                        No effect if called with --no-image.  [0<=x<=10]
-  --delay FLOAT         Seconds to skip thumbnails download.  [0<=x<=10]
+                        No effect if called with --no-image.  [1<=x<=10]
+  --delay FLOAT         Seconds to skip thumbnails download.  [1<=x<=10]
   --filter GLOB         Restricts downloads to game labels globs - not paths -
                         in the playlist, can be used multiple times and
                         matches reset thumbnails, --filter '*' downloads all.
