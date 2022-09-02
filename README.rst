@@ -90,10 +90,10 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
 
 To install the program, type on the cmd line
 
-+---------------------+-------------------------------------------------------------------------------------------------------+
-| Linux               | ``pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/master.zip``           |
-+---------------------+-------------------------------------------------------------------------------------------------------+
-| Windows             | ``python -m pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/master.zip`` |
-+---------------------+-------------------------------------------------------------------------------------------------------+
++----------------+---------------------------------------------------------------------------------------------+
+| Latest release | ``pip install --force-reinstall libretrofuzz``                                              |
++----------------+---------------------------------------------------------------------------------------------+
+| Current code   | ``pip install --force-reinstall https://github.com/i30817/libretrofuzz/archive/master.zip`` |
++----------------+---------------------------------------------------------------------------------------------+
 
-In windows, you'll want to check the option to “Add Python to PATH” when installing python, to be able to execute the script from any path of the cmd line.
+In windows, you'll want to check the option to “Add Python to PATH” when installing python, to be able to install and execute the script from any path of the cmd line.
