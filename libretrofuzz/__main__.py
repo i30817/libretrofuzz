@@ -155,11 +155,8 @@ def if_not_spaced_split_camelcase(name: str):
         name = ' '.join([s for s in re.split('([A-Z][^A-Z]*)', name) if s])
     return name
 
-#these two methods will be unnecessary once at python 3.9 is widespread in distros (ie: after ubuntu 20.04 is not supported)
-def removesuffix(name: str, suf: str):
-    if name.endswith(suf):
-        return name[:-len(suf)]
-    return name
+def removefirst(name: str, suf: str):
+    return name.replace(suf, '', 1)
 
 def removeprefix(name: str, pre: str):
     if name.startswith(pre):
@@ -222,36 +219,36 @@ def normalizer(t, nometa, hack):
     t = t.strip()
     #beginning and end definite articles in several european languages (people move them)
     #make sure we're only removing the capitalized start and end forms with spaces
-    t = removesuffix(t, ', The')
+    t = removefirst(t, ', The')
     t = removeprefix(t, 'The ')
-    t = removesuffix(t, ', Los')
+    t = removefirst(t, ', Los')
     t = removeprefix(t, 'Los ')
-    t = removesuffix(t, ', Las')
+    t = removefirst(t, ', Las')
     t = removeprefix(t, 'Las ')
-    t = removesuffix(t, ', Les')
+    t = removefirst(t, ', Les')
     t = removeprefix(t, 'Les ')
-    t = removesuffix(t, ', Le')
+    t = removefirst(t, ', Le')
     t = removeprefix(t, 'Le ')
-    t = removesuffix(t, ', La')
+    t = removefirst(t, ', La')
     t = removeprefix(t, 'La ')
-    t = removesuffix(t, ', L\'')
+    t = removefirst(t, ', L\'')
     #L' sometimes ommits the space so always remove L' at the start even without space
     t = removeprefix(t, 'L\'')  #if there is a extra space the next join will remove it
-    t = removesuffix(t, ', Der')
+    t = removefirst(t, ', Der')
     t = removeprefix(t, 'Der ')
-    t = removesuffix(t, ', Die')
+    t = removefirst(t, ', Die')
     t = removeprefix(t, 'Die ')
-    t = removesuffix(t, ', Das')
+    t = removefirst(t, ', Das')
     t = removeprefix(t, 'Das ')
-    t = removesuffix(t, ', El')
+    t = removefirst(t, ', El')
     t = removeprefix(t, 'El ')
-    t = removesuffix(t, ', Os')
+    t = removefirst(t, ', Os')
     t = removeprefix(t, 'Os ')
-    t = removesuffix(t, ', As')
+    t = removefirst(t, ', As')
     t = removeprefix(t, 'As ')
-    t = removesuffix(t, ', O')
+    t = removefirst(t, ', O')
     t = removeprefix(t, 'O ')
-    t = removesuffix(t, ', A')
+    t = removefirst(t, ', A')
     t = removeprefix(t, 'A ')
     #Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
     #If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
