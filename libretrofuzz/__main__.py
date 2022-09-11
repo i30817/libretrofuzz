@@ -386,6 +386,9 @@ def getDirectoryPath(cfg: Path, setting: str):
     dirp = os.path.expanduser(configParser['DUMMY'][setting].strip('\t ').strip('"'))
     return Path(dirp)
 
+def error(error: str):
+    typer.echo(typer.style(error, fg=typer.colors.RED, bold=True))
+
 def test_common_errors(cfg: Path, playlist: str, system: str):
     '''returns a tuple with (playlist_dir: Path, thumbnail_dir: Path, PLAYLISTS: [Path], SYSTEMS: [str]) '''
     global viewer
@@ -393,22 +396,22 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
     if not viewer:
         typer.echo(f'Shell image viewer chafa was not found')
     if not cfg or not cfg.is_file():
-        typer.echo(f'Invalid Retroarch cfg file: {cfg}')
+        error(f'Invalid Retroarch cfg file: {cfg}')
         raise typer.Exit(code=1)
     thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
     if not thumbnails_directory.is_dir():
-        typer.echo(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
+        error(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
         raise typer.Exit(code=1)
     playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
     if not playlist_dir.is_dir():
-        typer.echo(f'Invalid Retroarch playlist directory: {playlist_dir}')
+        error(f'Invalid Retroarch playlist directory: {playlist_dir}')
         raise typer.Exit(code=1)
     PLAYLISTS = list(playlist_dir.glob('./*.lpl'))
     if not PLAYLISTS:
-        typer.echo(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
+        error(f'Retroarch cfg file has empty playlist directory: {playlist_dir}')
         raise typer.Exit(code=1)
     if playlist and Path(playlist_dir, playlist) not in PLAYLISTS:
-        typer.echo(f'Unknown user provided playlist: {playlist}')
+        error(f'Unknown user provided playlist: {playlist}')
         raise typer.Exit(code=1)
 
     try:
@@ -417,10 +420,10 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
             soup = BeautifulSoup(page.text, 'html.parser')
         SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
     except (RequestError,HTTPStatusError) as err:
-        typer.echo(f'Could not get the remote thumbnail system names')
+        error(f'Could not get the remote thumbnail system names, exiting')
         raise typer.Exit(code=1)
     if system and system not in SYSTEMS:
-        typer.echo(f'The user provided system name {system} does not match any remote thumbnail system names')
+        error(f'The user provided system name {system} does not match any remote thumbnail system names')
         raise typer.Exit(code=1)
     return (playlist_dir, thumbnails_directory, sorted(PLAYLISTS), sorted(SYSTEMS))
 
@@ -477,10 +480,10 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
                     names = readPlaylistAndPrepareDirectories(Path(playlist_dir, playlist), tmpdir, thumbnails_dir)
                     await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
         except StopPlaylist as e:
-            typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
+            error(f'Cloudflare is down for {system}')
             raise typer.Exit(code=1)
         except StopProgram as e:
-            typer.echo(f'Cancelled by user')
+            error(f'Cancelled by user, exiting')
             raise typer.Exit()
     asyncio.run(runit(), debug=False)
 
@@ -516,9 +519,9 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
                         try:
                             await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
                         except StopPlaylist as e:
-                            typer.echo(typer.style(f'Cloudflare is down for {system}', fg=typer.colors.RED, bold=True))
+                            error(f'Cloudflare is down for {system}')
         except StopProgram as e:
-            typer.echo(f'Cancelled by user')
+            error(f'Cancelled by user, exiting')
             raise typer.Exit()
     asyncio.run(runit(), debug=False)
 
@@ -549,7 +552,7 @@ async def downloadgamenames(client, system):
                 l1 = { unquote(Path(node.get('href')).name[:-4]) : lr_thumb+node.get('href') for node in soup.find_all('a') if node.get('href').endswith('.png')}
             args.append(l1)
     except (RequestError,HTTPStatusError) as err:
-        typer.echo(str(err))
+        error(f'Could not get the remote thumbnail game names, exiting')
         raise typer.Exit(code=1)
     return args
 
@@ -735,12 +738,9 @@ async def download(client, url, destination, download_format, missing_format, wa
                             checkDownload()
                             w.write(chunk)
             return True
-        except IOError as e:
-            typer.echo(str(e))
-            raise typer.Exit(code=1)            
         except (RequestError,HTTPStatusError) as e:
             if max_retries <= 0:
-                typer.echo(str(e))
+                error(f'Download max retries exceeded, exiting')
                 raise typer.Exit(code=1)
             max_retries -= 1
 
@@ -820,5 +820,5 @@ def fuzzall():
     typer.run(mainfuzzall)
 
 if __name__ == "__main__":
-    typer.echo('Please run libretro-fuzz or libretro-fuzzall instead of running the script directly')
+    error('Please run libretro-fuzz or libretro-fuzzall instead of running the script directly')
     raise typer.Exit(code=1)
