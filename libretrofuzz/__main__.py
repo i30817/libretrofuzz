@@ -105,25 +105,38 @@ def checkDownload():
     if escape:
         raise StopProgram()
     if skip:
-        skip = False
         raise StopDownload()
 def checkEscape():
+    '''only called when it doesn't matter if a escape will happen, usually at the start of a iteration or the preparation phase'''
+    #so we can reset skip here, since it wont matter either way and will help remove false skip positives from the key event loop
+    global skip
+    skip = False
     global escape
     if escape:
         raise StopProgram()
-
 @asynccontextmanager
 async def lock_keys() -> None:
     '''blocks key echoing for this console and recognizes most keys
        including many combinations, user kill still works, alt+tab...
        it also serves as a quit program and skip download shortcut
+       from: https://python-prompt-toolkit.readthedocs.io/en/master/pages/asking_for_input.html
+       Since this is decorated with a asynccontextmanager, it's guarded by async with
+       https://docs.python.org/3/reference/compound_stmts.html#async-with
+       
+       since prompt_toolkit (3.0) input.attach attaches to a already running event asyncio event loop,
+       these key checks run essentially 'forever' in the same thread as the main one.
+       
+       This is event loop is not cooperative (although it's thread safe, since it's a single thread)
+       so stale 'skip' (not ctrl-c or escape, since those exit right away) can be set to 'True' with a
+       logical check error of set while a nondownload iteration was running then check on a unrelated one.
+       So then you should reset skip on the 'checkescape' function at the start of every iteration
     '''
     done = asyncio.Event()
     input = create_input()
     def keys_ready():
         global skip
         global escape
-        #escape needs flush in unix platforms, so this chain
+        #ctrl-c needs flush, so this chain
         for key_press in chain(input.read_keys(), input.flush_keys()):
             if key_press.key == 'escape' or key_press.key == 'c-c': #esc or control-c
                 escape = True
@@ -133,7 +146,10 @@ async def lock_keys() -> None:
 
     with input.raw_mode():
         with input.attach(keys_ready):
-            typer.echo(typer.style(f' Press escape to quit, and most other non-meta keys to skip downloads', bold=True))
+            #ignore keys in buffer before we are ready
+            input.read_keys()
+            input.flush_keys()
+            typer.echo(typer.style(f'Press escape to quit, and most other non-meta keys to skip downloads', bold=True))
             yield done
 
 #----------------non contextual str manipulation------------------------
