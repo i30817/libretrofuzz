@@ -393,14 +393,24 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
                 os.makedirs(Path(parent, db, dirname), exist_ok=True)
     return names
 
-def getDirectoryPath(cfg: Path, setting: str):
+def getPath(cfg: Path, setting: str, default_value: str):
     '''returns paths inside of a cfg file setting'''
     with open(cfg) as f:
         file_content = '[DUMMY]\n' + f.read()
     configParser = configparser.RawConfigParser()
     configParser.read_string(file_content)
-    dirp = os.path.expanduser(configParser['DUMMY'][setting].strip('\t ').strip('"'))
-    return Path(dirp)
+    try:
+        fdir = os.path.expanduser(configParser['DUMMY'][setting].strip('"'))
+    except:
+        return None
+    if fdir.startswith(r':\'):
+        fdir = fdir.replace(':', str(cfg.parent), 1)
+    elif fdir == 'default':
+        if default_value:
+            return Path(cfg.parent,default_value)
+        else:
+            return None
+    return Path(fdir)
 
 def error(error: str):
     typer.echo(typer.style(error, fg=typer.colors.RED, bold=True))
@@ -414,12 +424,12 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
     if not cfg or not cfg.is_file():
         error(f'Invalid Retroarch cfg file: {cfg}')
         raise typer.Exit(code=1)
-    thumbnails_directory = getDirectoryPath(cfg, 'thumbnails_directory')
-    if not thumbnails_directory.is_dir() or not os.access(thumbnails_directory, os.W_OK):
+    thumbnails_directory = getPath(cfg, 'thumbnails_directory', 'thumbnails')
+    if not thumbnails_directory or not thumbnails_directory.is_dir() or not os.access(thumbnails_directory, os.W_OK):
         error(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
         raise typer.Exit(code=1)
-    playlist_dir = getDirectoryPath(cfg, 'playlist_directory')
-    if not playlist_dir.is_dir() or not os.access(playlist_dir, os.R_OK):
+    playlist_dir = getPath(cfg, 'playlist_directory', 'playlists')
+    if not playlist_dir or not playlist_dir.is_dir() or not os.access(playlist_dir, os.R_OK):
         error(f'Invalid Retroarch playlist directory: {playlist_dir}')
         raise typer.Exit(code=1)
     PLAYLISTS = [ pl for pl in playlist_dir.glob('./*.lpl') if pl.is_file() and os.access(pl, os.R_OK) ]
