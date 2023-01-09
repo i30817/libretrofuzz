@@ -426,11 +426,11 @@ def test_common_errors(cfg: Path, playlist: str, system: str):
         raise typer.Exit(code=1)
     thumbnails_directory = getPath(cfg, 'thumbnails_directory', 'thumbnails')
     if not thumbnails_directory or not thumbnails_directory.is_dir() or not os.access(thumbnails_directory, os.W_OK):
-        error(f'Invalid Retroarch thumbnails directory: {thumbnails_directory}')
+        error(f'Invalid retroarch.cfg line: thumbnails_directory="{thumbnails_directory}"')
         raise typer.Exit(code=1)
     playlist_dir = getPath(cfg, 'playlist_directory', 'playlists')
     if not playlist_dir or not playlist_dir.is_dir() or not os.access(playlist_dir, os.R_OK):
-        error(f'Invalid Retroarch playlist directory: {playlist_dir}')
+        error(f'Invalid retroarch.cfg line: playlist_directory="{playlist_dir}"')
         raise typer.Exit(code=1)
     PLAYLISTS = [ pl for pl in playlist_dir.glob('./*.lpl') if pl.is_file() and os.access(pl, os.R_OK) ]
     if not PLAYLISTS:
