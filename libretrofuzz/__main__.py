@@ -404,7 +404,7 @@ def getPath(cfg: Path, setting: str, default_value: str):
     except:
         return None
     if fdir.startswith(r':\'):
-        fdir = fdir.replace(':', str(cfg.parent), 1)
+        fdir = fdir.replace(r':\', str(cfg.parent) + os.sep, 1)
     elif fdir == 'default':
         if default_value:
             return Path(cfg.parent,default_value)
