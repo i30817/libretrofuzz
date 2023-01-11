@@ -404,9 +404,10 @@ def getPath(cfg: Path, setting: str, default_value: str):
     except:
         return None
     if fdir.startswith(':\\'):
+        fdir = fdir[2:]
         #imagine a retroarch.cfg file created in windows is read in posix
         if os.sep == '/':
-            fdir = fdir[2:].replace('\\', '/')
+            fdir = fdir.replace('\\', '/')
         return cfg.parent / fdir
     elif fdir == 'default':
         if default_value:
