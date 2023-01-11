@@ -403,8 +403,11 @@ def getPath(cfg: Path, setting: str, default_value: str):
         fdir = os.path.expanduser(configParser['DUMMY'][setting].strip('"'))
     except:
         return None
-    if fdir.startswith(r':\'):
-        fdir = fdir.replace(r':\', str(cfg.parent) + os.sep, 1)
+    if fdir.startswith(':\\'):
+        #imagine a retroarch.cfg file created in windows is read in posix
+        if os.sep == '/':
+            fdir = fdir[2:].replace('\\', '/')
+        return cfg.parent / fdir
     elif fdir == 'default':
         if default_value:
             return Path(cfg.parent,default_value)
