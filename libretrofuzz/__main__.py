@@ -46,7 +46,8 @@ Thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Titles', 'Nam
 ###########################################
 
 
-CONFIDENCE = 100
+WIN_SCORE = 100
+MAX_SCORE = 200
 MAX_RETRIES = 3
 #00-1f are ascii control codes, rest is 'normal' illegal windows filename chars according to powershell + &
 forbidden = r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008' + \
@@ -196,7 +197,7 @@ def which(executable):
 class TitleScorer(object):
     def __init__(self):
         #rapidfuzz says to use range 0-100, but this doesn't (it's much easier that way), so it uses internal api to prevent a possible early exit at == 100
-        self._RF_ScorerPy = { 'get_scorer_flags': lambda **kwargs: {'optimal_score': 200, 'worst_score': 0, 'flags': (1 << 6)} }
+        self._RF_ScorerPy = { 'get_scorer_flags': lambda **kwargs: {'optimal_score': MAX_SCORE, 'worst_score': 0, 'flags': (1 << 6)} }
 
     def __call__(self, s1, s2, processor=None, score_cutoff=None):
         prefix = len(os.path.commonprefix([s1, s2]))
@@ -208,7 +209,7 @@ class TitleScorer(object):
             return 0
         else:
             if s1 == s2:
-                return 200
+                return MAX_SCORE
             #score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
             #1. the caller of this, extractOne passes the 'current best score' as score_cutoff
             #2. the token_set_ratio function returns 0 if the calculated score < score_cutoff
@@ -411,7 +412,7 @@ def getPath(cfg: Path, setting: str, default_value: str):
         return cfg.parent / fdir
     elif fdir == 'default':
         if default_value:
-            return Path(cfg.parent,default_value)
+            return cfg.parent / default_value
         else:
             return None
     return Path(fdir)
@@ -469,8 +470,9 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         noimage: bool = typer.Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
-        nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
-        nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Remove subtitle after \' - \' or \': \' for mismatched labels and server names. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help. To restrict or retry use --filter.'),
+        nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Remove subtitle after \' - \' or \': \' for mismatched labels and server names. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help.'),
+        nofail: bool = typer.Option(False, '--no-fail', help='Download any score.'),
+        perfect: bool = typer.Option(False, '--perfect', help='Download max score. No effect if called with --nofail.'),
         nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
         hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
@@ -508,7 +510,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
                 with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_dir) as tmpdir:
                     typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
                     names = readPlaylistAndPrepareDirectories(Path(playlist_dir, playlist), tmpdir, thumbnails_dir)
-                    await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
+                    await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,perfect,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
         except StopPlaylist as e:
             error(f'Cloudflare is down for {system}')
             raise typer.Exit(code=1)
@@ -523,8 +525,9 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and matches reset thumbnails, --filter \'*\' downloads all.'),
         noimage: bool = typer.Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No effect if called with --filter.'),
-        nofail: bool = typer.Option(False, '--no-fail', help='Download any score. To restrict or retry use --filter.'),
-        nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Remove subtitle after \' - \' or \': \' for mismatched labels and server names. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help. To restrict or retry use --filter.'),
+        nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Remove subtitle after \' - \' or \': \' for mismatched labels and server names. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help.'),
+        nofail: bool = typer.Option(False, '--no-fail', help='Download any score.'),
+        perfect: bool = typer.Option(False, '--perfect', help='Download max score. No effect if called with --nofail.'),
         nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
         hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces metadata to be ignored.'),
@@ -547,7 +550,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
                         typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
                         names = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
                         try:
-                            await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
+                            await downloader(names,system,wait_before,wait_after,filters,noimage,nomerge,nofail,nometa,perfect,hack,nosubtitle,verbose,before,tmpdir,thumbnails_dir,client)
                         except StopPlaylist as e:
                             error(f'Cloudflare is down for {system}')
         except StopProgram as e:
@@ -591,7 +594,7 @@ async def downloader(names: [(str,str)],
                wait_before: Optional[float],
                wait_after: Optional[float],
                filters: Optional[List[str]],
-               noimage : bool, nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: bool,
+               noimage : bool, nomerge: bool, nofail: bool, nometa: bool, perfect: bool, hack: bool, nosubtitle: bool, verbose: bool,
                before: Optional[str],
                tmpdir: Path,
                thumbnails_dir: Path,
@@ -607,6 +610,9 @@ async def downloader(names: [(str,str)],
     if before:
         hack = False
         nometa = True
+    #no-fail requires perfect to be disabled
+    if nofail:
+        perfect = False
     
     #preprocess data so it's not redone every loop iteration.
     title_scorer = TitleScorer()
@@ -680,7 +686,7 @@ async def downloader(names: [(str,str)],
         nomerge_format = f'{zeroth_format}{typer.style("Nomerge",        fg=(128,128,128), bold=True)}: {name_format}'
         getting_format = f'{prefix_format}{typer.style("Getting",    fg=typer.colors.BLUE, bold=True)}: {name_format}'
         waiting_format = f'{prefix_format}{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {name_format}' '{bar:-9b} {remaining_s:2.1f}s: {bar:10u}'
-        if thumbnail and ( i_max >= CONFIDENCE or nofail ):
+        if thumbnail and ((perfect and i_max == MAX_SCORE) or (not perfect and i_max >= WIN_SCORE) or nofail):
             #these parent directories were created when reading the playlist, more efficient than doing it a playlist game loop
             real_thumb_dir = Path(thumbnails_dir,destination)
             down_thumb_dir = Path(tmpdir,destination)
