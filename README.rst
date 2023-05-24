@@ -5,7 +5,7 @@ In Retroarch, when you use the manual scanner to get non-standard games or hacks
 
 These programs, for each game label on a playlist, download the most similar named image to display in retroarch.
 
-There are several options to fit unusual labels, but you can just run them to get the most restrictive default.
+There are several options to fit unusual labels and increase fuzziness, but you can just run them to get the most restrictive default (with the least fuzz).
 
 If you use ``libretro-fuzz``, it will download for a single playlist by asking for the playlist and system if they're not provided.
 If you use ``libretro-fuzzall``, it will dowload for all playlists with standard libretro names, and will skip custom playlists.
@@ -54,7 +54,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
                         Directory name in the server to download thumbnails.
                         If not provided, asked from the user.
   --delay-after FLOAT   Seconds after download to skip replacing thumbnails.
-                        No effect if called with --no-image.  [1<=x<=10]
+                        No-op with --no-image.  [1<=x<=10]
   --delay FLOAT         Seconds to skip thumbnails download.  [1<=x<=10]
   --filter GLOB         Restricts downloads to game labels globs - not paths -
                         in the playlist, can be used multiple times and
@@ -63,14 +63,14 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --no-merge            Disables missing thumbnails download for a label if
                         there is at least one in cache to avoid mixing
                         thumbnails from different server directories on
-                        repeated calls. No effect if called with --filter.
-  --no-subtitle         Remove subtitle after ' - ' or ': ' for mismatched
-                        labels and server names. ':' can't occur in server
-                        names, so if the server has 'Name\_ subtitle.png' and
-                        not 'Name - subtitle.png' (uncommon), this option
-                        doesn't help.
-  --no-fail             Download any score.
-  --perfect             Download max score. No effect if called with --nofail.
+                        repeated calls. No-op with --filter.
+  --no-subtitle         Ignores text after last ' - ' or ': '. ':' can't occur
+                        in server names, so if the server has 'Name\_
+                        subtitle.png' and not 'Name - subtitle.png'
+                        (uncommon), this option doesn't help.
+  --no-fail             Download any score. Equivalent to --score 0.
+  --score FUZZ          Download fuzz (less is more fuzz, 100 being average).
+                        No-op with --nofail.  [default: 200; 0<=x<=200]
   --no-meta             Ignores () delimited metadata and may cause false
                         positives. Forced with --before.
   --hack                Matches [] delimited metadata and may cause false
@@ -79,14 +79,13 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --before TEXT         Use only the part of the label before TEXT to match.
                         TEXT may not be inside of brackets of any kind, may
                         cause false positives but some labels do not have
-                        traditional separators. Forces metadata to be ignored.
+                        traditional separators. Forces ignoring metadata.
   --verbose             Shows the failures, score and normalized local and
-                        server names in output (score >= 100 is succesful).
+                        server names in output.
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or
                         customize the installation.
   --help                Show this message and exit.
-
 
 
 
