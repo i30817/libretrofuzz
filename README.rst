@@ -59,6 +59,9 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --filter GLOB         Restricts downloads to game labels globs - not paths -
                         in the playlist, can be used multiple times and
                         matches reset thumbnails, --filter '\*' downloads all.
+  --score FUZZ          Download fuzz (less is more fuzz, 100 being average).
+                        No-op with --nofail.  [default: 200; 0<=x<=200]
+  --no-fail             Download any score. Equivalent to --score 0.
   --no-image            Don't show images even with chafa installed.
   --no-merge            Disables missing thumbnails download for a label if
                         there is at least one in cache to avoid mixing
@@ -68,9 +71,6 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
                         in server names, so if the server has 'Name\_
                         subtitle.png' and not 'Name - subtitle.png'
                         (uncommon), this option doesn't help.
-  --no-fail             Download any score. Equivalent to --score 0.
-  --score FUZZ          Download fuzz (less is more fuzz, 100 being average).
-                        No-op with --nofail.  [default: 200; 0<=x<=200]
   --no-meta             Ignores () delimited metadata and may cause false
                         positives. Forced with --before.
   --hack                Matches [] delimited metadata and may cause false
