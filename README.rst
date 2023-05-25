@@ -60,7 +60,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
                         in the playlist, can be used multiple times and
                         matches reset thumbnails, --filter '\*' downloads all.
   --score FUZZ          Download fuzz (less is more fuzz, 100 being average).
-                        No-op with --nofail.  [default: 200; 0<=x<=200]
+                        No-op with --no-fail.  [default: 200; 0<=x<=200]
   --no-fail             Download any score. Equivalent to --score 0.
   --no-image            Don't show images even with chafa installed.
   --no-merge            Disables missing thumbnails download for a label if
