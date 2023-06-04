@@ -236,7 +236,8 @@ def normalizer(t, nometa, hack):
     #strips just because the user may have made a mistake naming the source
     #(or the replacement above introduce boundary spaces)
     t = t.strip()
-    #remove any number leading 0 (except at the end or the start of the string)
+    #remove any number leading 0, except at the end or the start of the string
+    #where it is likely a important part of the name, not a file manager sort workaround
     t = re.sub(zero_lead_pattern, r'\1\2', t)
     #CamelCaseNames for local labels are common when there are no spaces,
     #do this to normalize definite articles in normalization with spaces only (minimizes changes)
