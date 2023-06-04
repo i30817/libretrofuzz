@@ -153,20 +153,23 @@ async def lock_keys() -> None:
             yield done
 
 #----------------non contextual str manipulation------------------------
+parenthesis_patterns = { '()': re.compile(fr'\([^)(]*\)'), '[]': re.compile(fr'\[[^][]*\]') }
 def removeparenthesis(s, open_p='(', close_p=')'):
     nb_rep = 1
+    key = open_p+close_p
+    try:
+      pattern = parenthesis_patterns[key]
+    except:
+      pattern =  re.compile(fr'\{open_p}[^{close_p}{open_p}]*\{close_p}')
+      parenthesis_patterns[key] = pattern
     while (nb_rep):
-        a = fr'\{open_p}[^{close_p}{open_p}]*\{close_p}'
-        (s, nb_rep) = re.subn(a, '', s)
+        (s, nb_rep) = re.subn(pattern, '', s)
     return s
 
 def replacemany(our_str, to_be_replaced, replace_with):
     for nextchar in to_be_replaced:
         our_str = our_str.replace(nextchar, replace_with)
     return our_str
-
-def split_camelcase(name: str):
-    return ' '.join([s.strip() for s in re.split('([A-Z][^A-Z]*)', name) if s])
 
 def removefirst(name: str, suf: str):
     return name.replace(suf, '', 1)
@@ -220,6 +223,9 @@ class TitleScorer(object):
 #-----------------------------------------------------------------------------------------------------------------------------
 # Normalization functions, part of the functions that change both local labels and remote names to be more similar to compare
 #-----------------------------------------------------------------------------------------------------------------------------
+camelcase_pattern = re.compile(r'([A-Z][^A-Z]*)')
+#number sequences in the middle (not start or end) of a string that start with 0
+zero_lead_pattern = re.compile(r'([^\d])0+([1-9])')
 def normalizer(t, nometa, hack):
     if nometa:
         t = removeparenthesis(t,'(',')')
@@ -232,7 +238,7 @@ def normalizer(t, nometa, hack):
     t = t.strip()
     #CamelCaseNames for local labels are common when there are no spaces,
     #do this to normalize definite articles in normalization with spaces only (minimizes changes)
-    t = split_camelcase(t)
+    t = ' '.join([s.strip() for s in re.split(camelcase_pattern, t) if s])
     #normalize case
     t = t.lower()
     #beginning and end definite articles in several european languages (people move them)
@@ -276,6 +282,8 @@ def normalizer(t, nometa, hack):
     #although all names have spaces (now), the local names may have weird spaces,
     #so to equalize them after the space dependent checks (this also strips)
     t = ''.join(t.split())
+    #remove any number leading 0 (except at the end or the start of the string)
+    t = re.sub(zero_lead_pattern, r'\1\2', t)
     #Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
     #If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
     t = t.replace('xviii', '18')
