@@ -236,6 +236,8 @@ def normalizer(t, nometa, hack):
     #strips just because the user may have made a mistake naming the source
     #(or the replacement above introduce boundary spaces)
     t = t.strip()
+    #remove any number leading 0 (except at the end or the start of the string)
+    t = re.sub(zero_lead_pattern, r'\1\2', t)
     #CamelCaseNames for local labels are common when there are no spaces,
     #do this to normalize definite articles in normalization with spaces only (minimizes changes)
     t = ' '.join([s.strip() for s in re.split(camelcase_pattern, t) if s])
@@ -282,8 +284,6 @@ def normalizer(t, nometa, hack):
     #although all names have spaces (now), the local names may have weird spaces,
     #so to equalize them after the space dependent checks (this also strips)
     t = ''.join(t.split())
-    #remove any number leading 0 (except at the end or the start of the string)
-    t = re.sub(zero_lead_pattern, r'\1\2', t)
     #Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
     #If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
     t = t.replace('xviii', '18')
