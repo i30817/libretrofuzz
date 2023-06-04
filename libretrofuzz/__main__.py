@@ -153,7 +153,7 @@ async def lock_keys() -> None:
             yield done
 
 #----------------non contextual str manipulation------------------------
-parenthesis_patterns = { '()': re.compile(fr'\([^)(]*\)'), '[]': re.compile(fr'\[[^][]*\]') }
+parenthesis_patterns = { '()': re.compile(r'\([^)(]*\)'), '[]': re.compile(r'\[[^][]*\]') }
 def removeparenthesis(s, open_p='(', close_p=')'):
     nb_rep = 1
     key = open_p+close_p
