@@ -165,11 +165,8 @@ def replacemany(our_str, to_be_replaced, replace_with):
         our_str = our_str.replace(nextchar, replace_with)
     return our_str
 
-def if_not_spaced_split_camelcase(name: str):
-    """if the name is a no-space string, split the camelcase, if any"""
-    if ' ' not in name:
-        name = ' '.join([s for s in re.split('([A-Z][^A-Z]*)', name) if s])
-    return name
+def split_camelcase(name: str):
+    return ' '.join([s.strip() for s in re.split('([A-Z][^A-Z]*)', name) if s])
 
 def removefirst(name: str, suf: str):
     return name.replace(suf, '', 1)
@@ -233,6 +230,9 @@ def normalizer(t, nometa, hack):
     #strips just because the user may have made a mistake naming the source
     #(or the replacement above introduce boundary spaces)
     t = t.strip()
+    #CamelCaseNames for local labels are common when there are no spaces,
+    #do this to normalize definite articles in normalization with spaces only (minimizes changes)
+    t = split_camelcase(t)
     #normalize case
     t = t.lower()
     #beginning and end definite articles in several european languages (people move them)
@@ -270,6 +270,12 @@ def normalizer(t, nometa, hack):
     t = removeprefix(t, 'a ')
     #remove the symbols used in the definite article normalization
     t = replacemany(t, ',\'', '')
+    #this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
+    #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
+    t = t.replace(' and ',  '')
+    #although all names have spaces (now), the local names may have weird spaces,
+    #so to equalize them after the space dependent checks (this also strips)
+    t = ''.join(t.split())
     #Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
     #If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
     t = t.replace('xviii', '18')
@@ -292,12 +298,6 @@ def normalizer(t, nometa, hack):
     t = t.replace('ix',   '9')
     t = t.replace('x',   '10')
     t = t.replace('i',    '1')
-    #this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
-    #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
-    t = t.replace(' and ',  '')
-    #although all names have spaces (now), the local names may have weird spaces,
-    #so to equalize them after the space dependent checks (this also strips)
-    t = ''.join(t.split())
     #remove diacritics (does nothing to asian languages diacritics, only for 2 to 1 character combinations)
     t = u''.join([c for c in unicodedata.normalize('NFKD', t) if not unicodedata.combining(c)])
     return t
@@ -655,10 +655,7 @@ async def downloader(names: [(str,str)],
         #only the local names should have forbidden characters
         name = re.sub(forbidden, '_', name )
         nameaux = re.sub(forbidden, '_', nameaux )
-        
-        #CamelCaseNames for local labels are common when there are no spaces,
-        #do this to normalize definite articles in normalization with spaces only (minimizes changes)
-        nameaux = if_not_spaced_split_camelcase(nameaux)
+
         #unlike the server thumbnails, normalization wasn't done yet
         nameaux = norm(nameaux, nometa, hack)
         
