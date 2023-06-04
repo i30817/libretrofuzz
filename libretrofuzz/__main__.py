@@ -217,7 +217,7 @@ class TitleScorer(object):
             #Combine the scorer with a common prefix heuristic to give priority to longer similar
             #names, this helps prevents false positives for shorter strings which token set ratio
             #is prone because it sets score to 100 if one string words are completely on the other.
-            return similarity + prefix
+            return min(MAX_SCORE-1,similarity + prefix)
 
 
 #-----------------------------------------------------------------------------------------------------------------------------
