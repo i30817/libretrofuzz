@@ -102,6 +102,13 @@ class StopProgram(Exception):
 skip = False
 escape  = False
 enter = False
+
+@contextmanager
+def handleContinueDownload():
+  try:
+    yield
+  except ContinueDownload:
+    pass
 def checkDownload():
     '''threading.get_native_id() in this and other acesses of these variables
        confirms all accesses are in synchronous functions on one thread so
@@ -632,9 +639,7 @@ async def downloader(names: [(str,str)],
     #not a error to pass a empty playlist
     if len(names) == 0:
         return
-    
     thumbs = Thumbs._make( await downloadgamenames(client, system) )
-    
     #before implies that the names of the playlists may be cut, so the hack and meta matching must be disabled
     if before:
         hack = False
@@ -777,12 +782,10 @@ async def downloader(names: [(str,str)],
 
 async def printwait(wait : Optional[float], waiting_format: str):
     count = int(wait/0.1)
-    try:
+    with handleContinueDownload():
       for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
         checkDownload()
         await asyncio.sleep(0.1)
-    except ContinueDownload as e:
-      pass
 
 async def download(client, url, destination, download_format, missing_format, waiting_format, first_wait, wait_before, max_retries):
     '''returns True if downloaded. To download, it must have waited, if first_wait is True. Exceptions may happen instead of returning False, but they
@@ -805,8 +808,9 @@ async def download(client, url, destination, download_format, missing_format, wa
                         await printwait(wait_before, waiting_format)
                     with tqdm.wrapattr(f, 'write', total=length, dynamic_ncols=True, bar_format=download_format, colour='BLUE', leave=False) as w:
                         async for chunk in r.aiter_raw(4096):
+                          with handleContinueDownload():
                             checkDownload()
-                            w.write(chunk)
+                          w.write(chunk)
             return True
         except (RequestError,HTTPStatusError) as e:
             if max_retries <= 0:
