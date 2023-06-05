@@ -53,10 +53,10 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
                         Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.
   --system <NAME libretro-fuzz only>
                         Directory name in the server to download thumbnails. If not provided, asked from the user.
-  --delay-after FLOAT   | Seconds after download to skip replacing thumbnails. No-op with ``--no-image``.
-                        | [1<=x<=10]
-  --delay FLOAT         | Seconds to skip thumbnails download.
-                        | [1<=x<=10]
+  --delay-after FLOAT   | Seconds after download to skip replacing thumbnails, enter continues. No-op with ``--no-image``.
+                        | [1<=x<=30]
+  --delay FLOAT         | Seconds to skip thumbnails download, enter continues.
+                        | [1<=x<=30]
   --filter GLOB         Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, ``--filter '*'`` redownloads all.
   --score FUZZ          | Min fuzz, 0=no-fail, 100=average, 200≃equal,default. No-op with ``--no-fail``.
                         | [default: 200; 0<=x<=200]

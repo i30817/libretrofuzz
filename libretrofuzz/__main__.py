@@ -48,6 +48,7 @@ Thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Titles', 'Nam
 ADDRESS='https://thumbnails.libretro.com'
 MAX_SCORE = 200
 MAX_RETRIES = 3
+MAX_WAIT_SECS = 30
 #00-1f are ascii control codes, rest is 'normal' illegal windows filename chars according to powershell + &
 forbidden = regex.compile( \
             r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008' + \
@@ -91,12 +92,16 @@ class StopPlaylist(Exception):
 class StopDownload(Exception):
     def __init__(self):
         super().__init__()
+class ContinueDownload(Exception):
+    def __init__(self):
+        super().__init__()
 class StopProgram(Exception):
     def __init__(self):
         super().__init__()
 
 skip = False
 escape  = False
+enter = False
 def checkDownload():
     '''threading.get_native_id() in this and other acesses of these variables
        confirms all accesses are in synchronous functions on one thread so
@@ -104,15 +109,20 @@ def checkDownload():
     '''
     global skip
     global escape
+    global enter
     if escape:
         raise StopProgram()
     if skip:
         raise StopDownload()
+    if enter:
+        raise ContinueDownload()
 def checkEscape():
     '''only called when it doesn't matter if a escape will happen, usually at the start of a iteration or the preparation phase'''
     #so we can reset skip here, since it wont matter either way and will help remove false skip positives from the key event loop
     global skip
     skip = False
+    global enter
+    enter = False
     global escape
     if escape:
         raise StopProgram()
@@ -138,10 +148,14 @@ async def lock_keys() -> None:
     def keys_ready():
         global skip
         global escape
+        global enter
         #ctrl-c needs flush, so this chain
         for key_press in chain(input.read_keys(), input.flush_keys()):
             if key_press.key == 'escape' or key_press.key == 'c-c': #esc or control-c
                 escape = True
+                done.set()
+            elif key_press.key == 'c-m': #linefeed or the final result of enter on both unix and windows
+                enter = True
                 done.set()
             else:
                 skip = True
@@ -151,7 +165,7 @@ async def lock_keys() -> None:
             #ignore keys in buffer before we are ready
             input.read_keys()
             input.flush_keys()
-            typer.echo(typer.style(f'Press escape to quit, and most other non-meta keys to skip downloads', bold=True))
+            typer.echo(typer.style(f'Press escape to quit, enter to continue and most other non-meta keys to skip downloads', bold=True))
             yield done
 
 #----------------non contextual str manipulation------------------------
@@ -178,7 +192,8 @@ def nosubtitle_aux(t,subtitle_marker=' - '):
     except:
       pattern = regex.compile(rf'.*({subtitle_marker}.*)')
       spatterns[subtitle_marker] = pattern
-    subtitle = regex.search(pattern, regex.search(before_metadata, t).group(1) if no_meta else t)
+    name_without_meta = regex.search(before_metadata, t)
+    subtitle = regex.search(pattern, name_without_meta.group(1) if name_without_meta else t)
     if subtitle:
         t = t[0:subtitle.start(1)] + ' ' + t[subtitle.end(1):]
     return t
@@ -476,8 +491,8 @@ def test_common_errors(cfg: Path, playlist: str, system: str, address: str):
 def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
         playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
         system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
-        wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails. No-op with --no-image.'),
-        wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download.'),
+        wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.'),
+        wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download, enter continues.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter \'*\' redownloads all.'),
         score: int = typer.Option(MAX_SCORE, '--score', min=0, max=MAX_SCORE, metavar='FUZZ', help='Min fuzz, 0=no-fail, 100=average, 200≃equal,default. No-op with --no-fail.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. Equivalent to --score 0.'),
@@ -532,8 +547,8 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     asyncio.run(runit(), debug=False)
 
 def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
-        wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails. No-op with --no-image.'),
-        wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=10, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download.'),
+        wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.'),
+        wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download, enter continues.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter \'*\' redownloads all.'),
         score: int = typer.Option(MAX_SCORE, '--score', min=0, max=MAX_SCORE, metavar='FUZZ', help='Min fuzz, 0=no-fail, 100=average, 200≃equal,default. No-op with --no-fail.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. Equivalent to --score 0.'),
@@ -762,9 +777,12 @@ async def downloader(names: [(str,str)],
 
 async def printwait(wait : Optional[float], waiting_format: str):
     count = int(wait/0.1)
-    for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
+    try:
+      for i in trange(count, dynamic_ncols=True, bar_format=waiting_format, colour='YELLOW', leave=False):
         checkDownload()
         await asyncio.sleep(0.1)
+    except ContinueDownload as e:
+      pass
 
 async def download(client, url, destination, download_format, missing_format, waiting_format, first_wait, wait_before, max_retries):
     '''returns True if downloaded. To download, it must have waited, if first_wait is True. Exceptions may happen instead of returning False, but they
