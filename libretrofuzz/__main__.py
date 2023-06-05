@@ -19,7 +19,7 @@ import json
 import os
 import sys
 import io
-import re
+import regex
 import zlib
 import fnmatch
 import collections
@@ -49,9 +49,11 @@ ADDRESS='https://thumbnails.libretro.com'
 MAX_SCORE = 200
 MAX_RETRIES = 3
 #00-1f are ascii control codes, rest is 'normal' illegal windows filename chars according to powershell + &
-forbidden = r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008' + \
+forbidden = regex.compile( \
+            r'[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008' + \
             r'\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015' + \
-            r'\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u003a\u002a\u003f\u005c\u002f\u0026]'
+            r'\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u003a\u002a\u003f\u005c\u002f\u0026]' \
+            )
 #external terminal image viewer application
 viewer = None
 
@@ -153,18 +155,33 @@ async def lock_keys() -> None:
             yield done
 
 #----------------non contextual str manipulation------------------------
-parenthesis_patterns = { '()': re.compile(r'\([^)(]*\)'), '[]': re.compile(r'\[[^][]*\]') }
+ppatterns = { '()': regex.compile(r'\([^)(]*\)'), '[]': regex.compile(r'\[[^][]*\]') }
 def removeparenthesis(s, open_p='(', close_p=')'):
     nb_rep = 1
     key = open_p+close_p
     try:
-      pattern = parenthesis_patterns[key]
+      pattern = ppatterns[key]
     except:
-      pattern =  re.compile(fr'\{open_p}[^{close_p}{open_p}]*\{close_p}')
-      parenthesis_patterns[key] = pattern
+      pattern =  regex.compile(fr'\{open_p}[^{close_p}{open_p}]*\{close_p}')
+      ppatterns[key] = pattern
     while (nb_rep):
-        (s, nb_rep) = re.subn(pattern, '', s)
+        (s, nb_rep) = regex.subn(pattern, '', s)
     return s
+
+spatterns = { ' - ': regex.compile(rf'.*( - .*)'), ': ': regex.compile(rf'.*(: .*)') }
+before_metadata = regex.compile(r'(^[^[({]*)')
+def nosubtitle_aux(t,subtitle_marker=' - '):
+    #last subtitle marker and everything there until the end (last because i noticed that 'subsubtitles' exist,
+    #for instance, ultima 7 - part 1|2 - subtitle
+    try:
+      pattern = spatterns[subtitle_marker]
+    except:
+      pattern = regex.compile(rf'.*({subtitle_marker}.*)')
+      spatterns[subtitle_marker] = pattern
+    subtitle = regex.search(pattern, regex.search(before_metadata, t).group(1) if no_meta else t)
+    if subtitle:
+        t = t[0:subtitle.start(1)] + ' ' + t[subtitle.end(1):]
+    return t
 
 def replacemany(our_str, to_be_replaced, replace_with):
     for nextchar in to_be_replaced:
@@ -179,7 +196,6 @@ def removeprefix(name: str, pre: str):
         return name[len(pre):]
     return name
 
-
 #----------------Used to check the existence of a sixtel compatible terminal image viewer-------------------------------
 def which(executable):
     flips = shutil.which(executable)
@@ -188,7 +204,6 @@ def which(executable):
     if not flips:
         flips = shutil.which(executable, path=os.getcwd())
     return flips
-
 
 #-----------------------------------------------------------------------------------------------------------------------
 #The heart of the program, what orders titles to be 'more similar' or less to the local labels (after the normalization)
@@ -219,13 +234,12 @@ class TitleScorer(object):
             #is prone because it sets score to 100 if one string words are completely on the other.
             return min(MAX_SCORE-1,similarity + prefix)
 
-
 #-----------------------------------------------------------------------------------------------------------------------------
 # Normalization functions, part of the functions that change both local labels and remote names to be more similar to compare
 #-----------------------------------------------------------------------------------------------------------------------------
-camelcase_pattern = re.compile(r'([A-Z][^A-Z]*)')
+camelcase_pattern = regex.compile(r'(\p{Lu}\p{Ll}+)')
 #number sequences in the middle (not start or end) of a string that start with 0
-zero_lead_pattern = re.compile(r'([^\d])0+([1-9])')
+zero_lead_pattern = regex.compile(r'([^\d])0+([1-9])')
 def normalizer(t, nometa, hack):
     if nometa:
         t = removeparenthesis(t,'(',')')
@@ -238,10 +252,10 @@ def normalizer(t, nometa, hack):
     t = t.strip()
     #remove any number leading 0, except at the end or the start of the string
     #where it is likely a important part of the name, not a file manager sort workaround
-    t = re.sub(zero_lead_pattern, r'\1\2', t)
+    t = regex.sub(zero_lead_pattern, r'\1\2', t)
     #CamelCaseNames for local labels are common when there are no spaces,
     #do this to normalize definite articles in normalization with spaces only (minimizes changes)
-    t = ' '.join([s.strip() for s in re.split(camelcase_pattern, t) if s])
+    t = ' '.join([s.strip() for s in regex.split(camelcase_pattern, t) if s])
     #normalize case
     t = t.lower()
     #beginning and end definite articles in several european languages (people move them)
@@ -311,19 +325,8 @@ def normalizer(t, nometa, hack):
     t = u''.join([c for c in unicodedata.normalize('NFKD', t) if not unicodedata.combining(c)])
     return t
 
-def nosubtitle_aux(t,subtitle_marker=' - '):
-    #Ignore metadata (but do not delete) and get the string before it
-    no_meta = re.search(r'(^[^[({]*)', t)
-    #last subtitle marker and everything there until the end (last because i noticed that 'subsubtitles' exist,
-    #for instance, ultima 7 - part 1|2 - subtitle
-    subtitle = re.search(rf'.*({subtitle_marker}.*)', no_meta.group(1) if no_meta else t)
-    if subtitle:
-        t = t[0:subtitle.start(1)] + ' ' + t[subtitle.end(1):]
-    return t
-
 def nosubtitle_normalizer(t, nometa, hack):
     return normalizer(nosubtitle_aux(t), nometa, hack)
-
 
 #---------------------------------------------------------------------------------
 # Initalization functions, since there are two main programs so the code is reused
@@ -466,7 +469,6 @@ def test_common_errors(cfg: Path, playlist: str, system: str, address: str):
         error(f'The user provided system name {system} does not match any remote thumbnail system names')
         raise typer.Exit(code=1)
     return (playlist_dir, thumbnails_directory, sorted(PLAYLISTS), sorted(SYSTEMS))
-
 
 #####################
 # Main programs code
@@ -651,9 +653,9 @@ async def downloader(names: [(str,str)],
         #'before' has priority over subtitle removal
         if before:
             #Ignore metadata and get the string before it
-            no_meta = re.search(r'(^[^[({]*)', nameaux)
-            if no_meta:
-                before_index = no_meta.group(1).find(before)
+            name_without_meta = regex.search(before_metadata, nameaux)
+            if name_without_meta:
+                before_index = name_without_meta.group(1).find(before)
                 if before_index != -1:
                     nameaux = nameaux[0:before_index]
         
@@ -666,8 +668,8 @@ async def downloader(names: [(str,str)],
             nameaux = nosubtitle_aux(nameaux, ': ')
         
         #only the local names should have forbidden characters
-        name = re.sub(forbidden, '_', name )
-        nameaux = re.sub(forbidden, '_', nameaux )
+        name = regex.sub(forbidden, '_', name )
+        nameaux = regex.sub(forbidden, '_', nameaux )
 
         #unlike the server thumbnails, normalization wasn't done yet
         nameaux = norm(nameaux, nometa, hack)
