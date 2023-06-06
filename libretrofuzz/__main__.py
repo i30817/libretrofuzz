@@ -672,6 +672,8 @@ async def downloader(names: [(str,str)],
     #turn into a set, original key and normalized value.
     remote_names = { x : norm(x, nometa, hack) for x in remote_names }
     for (name,destination) in names:
+        #allow a slighty async pause to be able to update the key status if never won a single score
+        await asyncio.sleep(0)
         #if called escape without being in a download zone, exit right away without a cancel print
         checkEscape()
         #if the user used filters, filter everything that doesn't match any of the globs
