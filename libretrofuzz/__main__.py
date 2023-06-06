@@ -720,7 +720,7 @@ async def downloader(names: [(str,str)],
             thumb_normal, thumb_score, thumb_name = r
             color = typer.colors.RED if thumb_score < score else typer.colors.GREEN
             verbose_format.insert(0, f"{typer.style(f'{int(thumb_score)}', fg=f'{color}', bold=True)} {thumb_normal}")
-          verbose_format = '|'.join(verbose_format)
+          verbose_format = ', '.join(verbose_format)
         elif len(result) > 0:
           thumb_normal, thumb_score, thumb_name = result[0]
         #hack, if result 1 and 2 have equal scores use the second thumbnail as a alternative if missing a thumb type
