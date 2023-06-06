@@ -58,7 +58,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --delay FLOAT         | Seconds to skip thumbnails download, enter continues.
                         | [1<=x<=30]
   --filter GLOB         Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, ``--filter '*'`` redownloads all.
-  --score FUZZ          | Min fuzz, 0=no-fail, 100=average, 200≃equal,default. No-op with ``--no-fail``.
+  --min SCORE           | 0=any, 100=fuzzy match, 200=equal mininames,default. No-op with ``--no-fail``.
                         | [default: 200; 0<=x<=200]
   --no-fail             Download any score. Equivalent to ``--score 0``.
   --no-image            Don't show images even with chafa installed.
@@ -69,7 +69,8 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --before TEXT         Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.
   --address URL         | URL with libretro-thumbnails server. For local files, git clone/unzip packs, run ``'python3 -m http.server'`` in parent dir, and use ``--address 'http://localhost:8000'``.
                         | [default: https://thumbnails.libretro.com]
-  --verbose             Shows the failures, score and normalized local and server names in output.
+  --verbose N           | Show mininame, len N list (maxscore, server mininame).
+                        | [x>=1]
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or customize the installation.
   --help                Show this message and exit.

@@ -176,6 +176,16 @@ async def lock_keys() -> None:
             yield done
 
 #----------------non contextual str manipulation------------------------
+def link(uri, label=None, parameters=''):
+    '''
+    Found in github, windows console and many unix consoles trick to embeed hyperlinks/uri with text
+    '''
+    if label is None:
+        label = uri
+    # OSC 8 ; params ; URI ST <name> OSC 8 ;; ST
+    escape_mask = '\033]8;{};{}\033\\{}\033]8;;\033\\'
+    return escape_mask.format(parameters, uri, label)
+
 ppatterns = { '()': regex.compile(r'\([^)(]*\)'), '[]': regex.compile(r'\[[^][]*\]') }
 def removeparenthesis(s, open_p='(', close_p=')'):
     nb_rep = 1
@@ -232,29 +242,29 @@ def which(executable):
 #-----------------------------------------------------------------------------------------------------------------------
 class TitleScorer(object):
     def __init__(self):
-        #rapidfuzz says to use range 0-100, but this doesn't (it's much easier that way), so it uses internal api to prevent a possible early exit at == 100
-        self._RF_ScorerPy = { 'get_scorer_flags': lambda **kwargs: {'optimal_score': MAX_SCORE, 'worst_score': 0, 'flags': (1 << 6)} }
+      #rapidfuzz says to use range 0-100, but this doesn't (it's much easier that way)
+      #so it uses internal api to prevent a possible early exit at == 100
+      self._RF_ScorerPy = { 'get_scorer_flags': lambda **kwargs: {'optimal_score': MAX_SCORE, 'worst_score': 0, 'flags': (1 << 6)} }
 
     def __call__(self, s1, s2, processor=None, score_cutoff=None):
-        prefix = len(os.path.commonprefix([s1, s2]))
-        if prefix <= 2 and len(s1) != len(s2):
-            #ideally this branch wouldn't exist, but since many games do not have
-            #images, they get caught up on a short title 'score' from token_set_ratio
-            #without the real title to win the similarity+prefix heuristic
-            #this removes many false positives and causes few false negatives.
-            return 0
-        else:
-            if s1 == s2:
-                return MAX_SCORE
-            #score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
-            #1. the caller of this, extractOne passes the 'current best score' as score_cutoff
-            #2. the token_set_ratio function returns 0 if the calculated score < score_cutoff
-            #3. 'current best score' includes the prefix, which this call can't include in 2.
-            similarity = fuzz.token_set_ratio(s1,s2,processor=None,score_cutoff=0)
-            #Combine the scorer with a common prefix heuristic to give priority to longer similar
-            #names, this helps prevents false positives for shorter strings which token set ratio
-            #is prone because it sets score to 100 if one string words are completely on the other.
-            return min(MAX_SCORE-1,similarity + prefix)
+      if (min(len(s1),len(s2)) / max(len(s1),len(s2))) < 0.3:
+        #ideally this branch wouldn't exist, but since many games do not have
+        #images, they get caught up on a short title being completely contained in another
+        #token_set_ratio gives that 100. Skip if the smaller name length is less than 30%
+        return 0
+      #names are whitespace and case normalized
+      if s1 == s2:
+        return MAX_SCORE
+      prefix = len(os.path.commonprefix([s1, s2]))
+      #score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
+      #1. the caller of this, extract passes the 'current best score' as score_cutoff
+      #2. the token_set_ratio function returns 0 if the calculated score < score_cutoff
+      #3. 'current best score' includes the prefix, which this call can't include in 2.
+      similarity = fuzz.token_set_ratio(s1,s2,processor=None,score_cutoff=0)
+      #Combine the scorer with a common prefix heuristic to give priority to longer similar
+      #names, this helps prevents false positives for shorter strings which token set ratio
+      #is prone because it sets score to 100 if one string words are completely on the other.
+      return min(MAX_SCORE-1,similarity + prefix)
 
 #-----------------------------------------------------------------------------------------------------------------------------
 # Normalization functions, part of the functions that change both local labels and remote names to be more similar to compare
@@ -318,9 +328,6 @@ def normalizer(t, nometa, hack):
     #this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
     #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
     t = t.replace(' and ',  '')
-    #although all names have spaces (now), the local names may have weird spaces,
-    #so to equalize them after the space dependent checks (this also strips)
-    t = ''.join(t.split())
     #Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
     #If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
     t = t.replace('xviii', '18')
@@ -345,7 +352,8 @@ def normalizer(t, nometa, hack):
     t = t.replace('i',    '1')
     #remove diacritics (does nothing to asian languages diacritics, only for 2 to 1 character combinations)
     t = u''.join([c for c in unicodedata.normalize('NFKD', t) if not unicodedata.combining(c)])
-    return t
+    #normalize spaces (don't remove them for other later score methods to be able to reorder tokens
+    return ' '.join(t.split())
 
 def nosubtitle_normalizer(t, nometa, hack):
     return normalizer(nosubtitle_aux(t), nometa, hack)
@@ -454,6 +462,12 @@ def error(error: str):
 
 def test_common_errors(cfg: Path, playlist: str, system: str, address: str):
     '''returns a tuple with (playlist_dir: Path, thumbnail_dir: Path, PLAYLISTS: [Path], SYSTEMS: [str]) '''
+    #stop showing the variables - a library installed this behind my back
+    try:
+      from rich.traceback import install
+      install(show_locals=False)
+    except ImportError:
+      pass
     global ADDRESS
     ADDRESS = address.rstrip('/')
     global viewer
@@ -501,7 +515,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.'),
         wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download, enter continues.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter \'*\' redownloads all.'),
-        score: int = typer.Option(MAX_SCORE, '--score', min=0, max=MAX_SCORE, metavar='FUZZ', help='Min fuzz, 0=no-fail, 100=average, 200≃equal,default. No-op with --no-fail.'),
+        score: int = typer.Option(MAX_SCORE, '--min', min=0, max=MAX_SCORE, metavar='SCORE', help=f'0=any, 100=fuzzy match, {MAX_SCORE}=equal mininames,default. No-op with --no-fail.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. Equivalent to --score 0.'),
         noimage: bool = typer.Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with --filter.'),
@@ -510,7 +524,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.'),
         address: Optional[str] = typer.Option(ADDRESS, metavar='URL', help='URL with libretro-thumbnails server. For local files, git clone/unzip packs, run \'python3 -m http.server\' in parent dir, and use --address \'http://localhost:8000\'.'),
-        verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output.')
+        verbose: Optional[int] = typer.Option(None, '--verbose', min=1, metavar='N', help=f'Show mininame, len N list (maxscore, server mininame).')
     ):
     if playlist and not playlist.lower().endswith('.lpl'):
         playlist = playlist + '.lpl'
@@ -557,7 +571,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.'),
         wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download, enter continues.'),
         filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter \'*\' redownloads all.'),
-        score: int = typer.Option(MAX_SCORE, '--score', min=0, max=MAX_SCORE, metavar='FUZZ', help='Min fuzz, 0=no-fail, 100=average, 200≃equal,default. No-op with --no-fail.'),
+        score: int = typer.Option(MAX_SCORE, '--min', min=0, max=MAX_SCORE, metavar='SCORE', help=f'0=any, 100=fuzzy match, {MAX_SCORE}=equal mininames,default. No-op with --no-fail.'),
         nofail: bool = typer.Option(False, '--no-fail', help='Download any score. Equivalent to --score 0.'),
         noimage: bool = typer.Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
         nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with --filter.'),
@@ -566,7 +580,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
         hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
         before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.'),
         address: Optional[str] = typer.Option(ADDRESS, metavar='URL', help='URL with libretro-thumbnails server. For local files, git clone/unzip packs, run \'python3 -m http.server\' in parent dir, and use --address \'http://localhost:8000\'.'),
-        verbose: bool = typer.Option(False, '--verbose', help='Shows the failures, score and normalized local and server names in output.')
+        verbose: Optional[int] = typer.Option(None, '--verbose', min=1, metavar='N', help=f'Show mininame, len N list (maxscore, server mininame).')
     ):
     playlist_dir, thumbnails_dir, PLAYLISTS, SYSTEMS = test_common_errors(cfg, None, None, address)
     
@@ -630,7 +644,7 @@ async def downloader(names: [(str,str)],
                wait_after: Optional[float],
                filters: Optional[List[str]],
                score: int,
-               noimage : bool, nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: bool,
+               noimage : bool, nomerge: bool, nofail: bool, nometa: bool, hack: bool, nosubtitle: bool, verbose: Optional[int],
                before: Optional[str],
                tmpdir: Path,
                thumbnails_dir: Path,
@@ -697,27 +711,34 @@ async def downloader(names: [(str,str)],
         #operate on cache (to speed up by not applying normalization every iteration)
         #the normalization can make it so that the winner has the same score as the runner up(s) so to make sure we catch at least
         #two thumbnails for cases where that happens, we check both best scores if we can't find a thumb in a server directory
-        result = process.extract(nameaux, remote_names, scorer=title_scorer,processor=None,limit=2,score_cutoff=None)
-        norm_thumbnail, i_max, thumbnail = (None, 0, None)
-        thumbnail2 = None
-        if len(result) == 1:
-            norm_thumbnail, i_max, thumbnail = result[0]
-        elif len(result) == 2:
-            norm_thumbnail, i_max, thumbnail = result[0]
-            if result[0][1] == result[1][1]: #equal scores
-                thumbnail2 = result[1][2]
+        result = process.extract(nameaux, remote_names, scorer=title_scorer,processor=None,limit=verbose or 1,score_cutoff=None)
+        #build the verbose format and decompose the first result, with a optimization if verbose is not on
+        thumb_normal, thumb_score, thumb_name = (None, 0, None)
+        verbose_format = []
+        if verbose:
+          for r in reversed(result):
+            thumb_normal, thumb_score, thumb_name = r
+            color = typer.colors.RED if thumb_score < score else typer.colors.GREEN
+            verbose_format.insert(0, f"{typer.style(f'{int(thumb_score)}', fg=f'{color}', bold=True)} {thumb_normal}")
+          verbose_format = '|'.join(verbose_format)
+        elif len(result) > 0:
+          thumb_normal, thumb_score, thumb_name = result[0]
+        #hack, if result 1 and 2 have equal scores use the second thumbnail as a alternative if missing a thumb type
+        #this is done because it's relatively common for the server to have a case mistake on thumb types
+        thumb_name2 = None
+        if len(result) >= 2:
+          if result[0][1] == result[1][1]:
+            thumb_name2 = result[1][2]
         #formating legos
-        zeroth_format  = '  0 ' if verbose else ''
-        prefix_format  = '{:>3} '.format(str(int(i_max))) if verbose else ''
-        name_format    = f'{nameaux} -> {norm_thumbnail}' if verbose else f'{name} -> {thumbnail}'
-        success_format = f'{prefix_format}{typer.style("Success",   fg=typer.colors.GREEN, bold=True)}: {name_format}'
-        failure_format = f'{prefix_format}{typer.style("Failure",     fg=typer.colors.RED, bold=True)}: {name_format}'
-        missing_format = f'{prefix_format}{typer.style("Missing",     fg=typer.colors.RED, bold=True)}:'
-        cancel_format  = f'{prefix_format}{typer.style("Skipped",        fg=(135,135,135), bold=True)}: {name_format}'
-        nomerge_format = f'{zeroth_format}{typer.style("Nomerge",        fg=(128,128,128), bold=True)}: {name_format}'
-        getting_format = f'{prefix_format}{typer.style("Getting",    fg=typer.colors.BLUE, bold=True)}: {name_format}'
-        waiting_format = f'{prefix_format}{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {name_format}' '{bar:-9b} {remaining_s:2.1f}s: {bar:10u}'
-        if thumbnail and i_max >= score:
+        name_format    = f'{nameaux} -> {verbose_format}' if verbose else f'{name} -> {thumb_name}'
+        success_format = f'{typer.style("Success",   fg=typer.colors.GREEN, bold=True)}: {name_format}'
+        failure_format = f'{typer.style("Failure",     fg=typer.colors.RED, bold=True)}: {name_format}'
+        missing_format = f'{typer.style("Missing",     fg=typer.colors.RED, bold=True)}: {name_format}'
+        cancel_format  = f'{typer.style("Skipped",        fg=(135,135,135), bold=True)}: {name_format}'
+        nomerge_format = f'{typer.style("Nomerge",        fg=(128,128,128), bold=True)}: {name_format}'
+        getting_format = f'{typer.style("Getting",    fg=typer.colors.BLUE, bold=True)}: {name_format}'
+        waiting_format = f'{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {name_format}' '{bar:-9b} {remaining_s:2.1f}s: {bar:10u}'
+        if thumb_name and thumb_score >= score:
             allow = True
             #these parent directories were created when reading the playlist, more efficient than doing it a playlist game loop
             real_thumb_dir = Path(thumbnails_dir,destination)
@@ -730,7 +751,7 @@ async def downloader(names: [(str,str)],
                     real = Path(real_thumb_dir, dirname, name + '.png')
                     if not real.exists():
                         missing_thumbs += 1
-                        if thumbnail in getattr(thumbs, dirname) or thumbnail2 in getattr(thumbs, dirname):
+                        if thumb_name in getattr(thumbs, dirname) or thumb_name2 in getattr(thumbs, dirname):
                             missing_server_thumbs += 1
                 allow = missing_thumbs == 3
                 #despite the above, print only for when it would download if it was allowed, otherwise it is confusing
@@ -747,7 +768,7 @@ async def downloader(names: [(str,str)],
                         downloaded_dict[dirname] = (real, temp)
                         #something to download
                         thumbmap = getattr(thumbs, dirname)
-                        url = thumbmap[thumbnail] if thumbnail in thumbmap else thumbmap.get(thumbnail2, None)
+                        url = thumbmap[thumb_name] if thumb_name in thumbmap else thumbmap.get(thumb_name2, None)
                         #with filters/reset you always download, and without only if it doesn't exist already.
                         if url and (filters or not real.exists()):
                             download_format = f'{getting_format}' '{bar:-9b}' f'{dirname[6:-1]}' ' {percentage:3.0f}%: {bar:10u}'
