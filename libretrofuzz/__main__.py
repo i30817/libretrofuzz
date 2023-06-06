@@ -178,8 +178,11 @@ async def lock_keys() -> None:
 #----------------non contextual str manipulation------------------------
 def link(uri, label=None, parameters=''):
     '''
-    Found in github, windows console and many unix consoles trick to embeed hyperlinks/uri with text
+    Found in https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
     '''
+    if type(uri) is str: #just hover text and show same hyperlinks if possible
+        import urllib.parse
+        uri = urllib.parse.quote(uri)
     if label is None:
         label = uri
     # OSC 8 ; params ; URI ST <name> OSC 8 ;; ST
@@ -721,7 +724,8 @@ async def downloader(names: [(str,str)],
           for r in reversed(result):
             thumb_normal, thumb_score, thumb_name = r
             color = typer.colors.RED if thumb_score < score else typer.colors.GREEN
-            verbose_format.insert(0, f"{typer.style(f'{int(thumb_score)}', fg=f'{color}', bold=True)} {thumb_normal}")
+            linke = link(thumb_name, thumb_normal)
+            verbose_format.insert(0, f"{typer.style(f'{int(thumb_score)}', fg=f'{color}', bold=True)} {linke}")
           verbose_format = ', '.join(verbose_format)
         elif len(result) > 0:
           thumb_normal, thumb_score, thumb_name = result[0]
@@ -732,14 +736,15 @@ async def downloader(names: [(str,str)],
           if result[0][1] == result[1][1]:
             thumb_name2 = result[1][2]
         #formating legos
-        name_format    = f'{nameaux} -> {verbose_format}' if verbose else f'{name} -> {thumb_name}'
+        name_format    = link(name,nameaux) + ' -> ' + verbose_format if verbose else f'{name} -> {thumb_name}'
         success_format = f'{typer.style("Success",   fg=typer.colors.GREEN, bold=True)}: {name_format}'
         failure_format = f'{typer.style("Failure",     fg=typer.colors.RED, bold=True)}: {name_format}'
         missing_format = f'{typer.style("Missing",     fg=typer.colors.RED, bold=True)}: {name_format}'
         cancel_format  = f'{typer.style("Skipped",        fg=(135,135,135), bold=True)}: {name_format}'
         nomerge_format = f'{typer.style("Nomerge",        fg=(128,128,128), bold=True)}: {name_format}'
         getting_format = f'{typer.style("Getting",    fg=typer.colors.BLUE, bold=True)}: {name_format}'
-        waiting_format = f'{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {name_format}' '{bar:-9b} {remaining_s:2.1f}s: {bar:10u}'
+        waiting_format = f'{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {name_format}' \
+                         + typer.style(' {remaining_s:2.1f}s', fg=typer.colors.RED, bold=True)
         if thumb_name and thumb_score >= score:
             allow = True
             #these parent directories were created when reading the playlist, more efficient than doing it a playlist game loop
