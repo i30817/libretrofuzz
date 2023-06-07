@@ -29,13 +29,14 @@ import asyncio
 import subprocess
 import configparser
 #external libraries
-import typer
 from PIL import Image, ImageOps
 from rapidfuzz import process, fuzz
 from bs4 import BeautifulSoup
 from questionary import Style, select
 from httpx import RequestError, HTTPStatusError, Client, AsyncClient
 from tqdm import trange, tqdm
+from typer.colors import YELLOW, RED, BLUE, GREEN, MAGENTA
+from typer import style, echo, run, Exit, Argument, Option
 
 #makes a class with these fields, which are the subdir names on the server system dir of the types of thumbnails
 Thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Titles', 'Named_Snaps'])
@@ -45,6 +46,7 @@ Thumbs = collections.namedtuple('Thumbs', ['Named_Boxarts', 'Named_Titles', 'Nam
 ###########################################
 
 ADDRESS='https://thumbnails.libretro.com'
+SEARCHADDRESS='https://www.mobygames.com/search/?q='
 MAX_SCORE = 200
 MAX_RETRIES = 3
 MAX_WAIT_SECS = 30
@@ -64,7 +66,7 @@ if sys.platform == 'win32': #this is for 64 bits too
   if not CONFIG.exists():
     CONFIG = Path(r'C:/RetroArch/retroarch.cfg')
     if not CONFIG.exists():
-      typer.echo('Portable install default location config not found, trying with APPDATA location')
+      echo('Portable install default location config not found, trying with APPDATA location')
       var = os.getenv('APPDATA')
       if var:
         CONFIG = Path(var, 'RetroArch', 'retroarch.cfg')
@@ -170,7 +172,7 @@ async def lock_keys():
         #ignore keys in buffer before we are ready
         input.read_keys()
         input.flush_keys()
-        typer.echo(typer.style(f'Press escape to quit, enter to continue and most other non-meta keys to skip downloads', bold=True))
+        echo(style(f'Press escape to quit, enter to continue and most other non-meta keys to skip downloads', bold=True))
         yield
   finally:
     #in windows 7 and python 3.8 for some reason prompt_toolkit
@@ -184,8 +186,6 @@ async def lock_keys():
 def link(uri, label=None, parameters=''):
   '''
   Found in https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
-  not being used 'correctly' in this application - i only want the hover text
-  in gnome, so it is fed here with no uri scheme, just uri encoded
   '''
   if label is None:
     label = uri
@@ -464,7 +464,7 @@ def getPath(cfg: Path, setting: str, default_value: str):
   return Path(fdir)
 
 def error(error: str):
-  typer.echo(typer.style(error, fg=typer.colors.RED, bold=True))
+  echo(style(error, fg=RED, bold=True))
 
 def test_common_errors(cfg: Path, playlist: str, system: str, address: str):
   '''returns a tuple with (playlist_dir: Path, thumbnail_dir: Path, PLAYLISTS: [Path], SYSTEMS: [str]) '''
@@ -479,32 +479,32 @@ def test_common_errors(cfg: Path, playlist: str, system: str, address: str):
   global viewer
   viewer = which('chafa')
   if not viewer:
-    typer.echo(f'Shell image viewer chafa was not found')
+    echo(f'Shell image viewer chafa was not found')
   if not cfg or not cfg.is_file():
     error(f'Invalid Retroarch cfg file: {cfg}')
-    raise typer.Exit(code=1)
+    raise Exit(code=1)
   thumbnails_directory = getPath(cfg, 'thumbnails_directory', 'thumbnails')
   if not thumbnails_directory or not thumbnails_directory.is_dir() or not os.access(thumbnails_directory, os.W_OK):
     error(f'Invalid retroarch.cfg line: thumbnails_directory="{thumbnails_directory}"')
-    raise typer.Exit(code=1)
+    raise Exit(code=1)
   playlist_dir = getPath(cfg, 'playlist_directory', 'playlists')
   if not playlist_dir or not playlist_dir.is_dir() or not os.access(playlist_dir, os.R_OK):
     error(f'Invalid retroarch.cfg line: playlist_directory="{playlist_dir}"')
-    raise typer.Exit(code=1)
+    raise Exit(code=1)
   PLAYLISTS = [ pl for pl in playlist_dir.glob('./*.lpl') if pl.is_file() and os.access(pl, os.R_OK) ]
   if not PLAYLISTS:
     error(f'Invalid playlist files in playlist directory: {playlist_dir}')
-    raise typer.Exit(code=1)
+    raise Exit(code=1)
   if playlist and Path(playlist_dir, playlist) not in PLAYLISTS:
     error(f'Invalid user provided playlist: {playlist}')
-    raise typer.Exit(code=1)
+    raise Exit(code=1)
   #windows can only print images and urls in windows 10 up (requires a better console)
   #since python 3.8 is the very minimum of this application, it can only be used on windows 7 and up
   #ie: we only have to disallow 7, 8
   basic_verbose = False
   import platform
   if sys.platform == "win32" and platform.release() in ('7','8','8.1'):
-    typer.echo(f'Disabling rich verbose and image output because your windows does not support it')
+    echo(f'Disabling rich verbose and image output because your windows does not support it')
     basic_verbose = True
   try:
     with Client() as client:
@@ -513,32 +513,32 @@ def test_common_errors(cfg: Path, playlist: str, system: str, address: str):
     SYSTEMS = [ unquote(node.get('href')[:-1]) for node in soup.find_all('a') if node.get('href').endswith('/') and not node.get('href').endswith('../') ]
   except (RequestError,HTTPStatusError) as err:
     error(f'Could not get the remote thumbnail system names, exiting: {err}')
-    raise typer.Exit(code=1)
+    raise Exit(code=1)
   if system and system not in SYSTEMS:
     error(f'The user provided system name {system} does not match any remote thumbnail system names')
-    raise typer.Exit(code=1)
+    raise Exit(code=1)
   return (basic_verbose, playlist_dir, thumbnails_directory, sorted(PLAYLISTS), sorted(SYSTEMS))
 
 #####################
 # Main programs code
 #####################
 
-def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
-  playlist: str = typer.Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
-  system: str = typer.Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
-  wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.'),
-  wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download, enter continues.'),
-  filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter \'*\' redownloads all.'),
-  score: int = typer.Option(MAX_SCORE, '--min', min=0, max=MAX_SCORE, metavar='SCORE', help=f'0=any, 100=fuzzy match, {MAX_SCORE}=equal mininames,default. No-op with --no-fail.'),
-  nofail: bool = typer.Option(False, '--no-fail', help='Download any score. Equivalent to --score 0.'),
-  noimage: bool = typer.Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
-  nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with --filter.'),
-  nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores text after last \' - \' or \': \'. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help.'),
-  nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
-  hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
-  before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.'),
-  address: Optional[str] = typer.Option(ADDRESS, metavar='URL', help='URL with libretro-thumbnails server. For local files, git clone/unzip packs, run \'python3 -m http.server\' in parent dir, and use --address \'http://localhost:8000\'.'),
-  verbose: Optional[int] = typer.Option(None, '--verbose', min=1, metavar='N', help=f'Show mininame, len N list (maxscore, server mininame).')
+def mainfuzzsingle(cfg: Path = Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
+  playlist: str = Option(None, metavar='NAME', help='Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.'),
+  system: str = Option(None, metavar='NAME', help='Directory name in the server to download thumbnails. If not provided, asked from the user.'),
+  wait_after: Optional[float] = Option(None, '--delay-after', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.'),
+  wait_before: Optional[float] = Option(None, '--delay', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download, enter continues.'),
+  filters: Optional[List[str]] = Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter \'*\' redownloads all.'),
+  score: int = Option(MAX_SCORE, '--min', min=0, max=MAX_SCORE, metavar='SCORE', help=f'0=any, 100=fuzzy match, {MAX_SCORE}=equal mininames,default. No-op with --no-fail.'),
+  nofail: bool = Option(False, '--no-fail', help='Download any score. Equivalent to --score 0.'),
+  noimage: bool = Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
+  nomerge: bool = Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with --filter.'),
+  nosubtitle: bool = Option(False, '--no-subtitle', help='Ignores text after last \' - \' or \': \'. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help.'),
+  nometa: bool = Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
+  hack: bool = Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
+  before: Optional[str] = Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.'),
+  address: Optional[str] = Option(ADDRESS, metavar='URL', help='URL with libretro-thumbnails server. For local files, git clone/unzip packs, run \'python3 -m http.server\' in parent dir, and use --address \'http://localhost:8000\'.'),
+  verbose: Optional[int] = Option(None, '--verbose', min=1, metavar='N', help=f'Show length N list (maxscore, mininame cover link).')
   ):
   if playlist and not playlist.lower().endswith('.lpl'):
     playlist = playlist + '.lpl'
@@ -555,7 +555,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     display_playlists = list(map(os.path.basename, PLAYLISTS))
     playlist = select('Which playlist do you want to download thumbnails for?', display_playlists, style=custom_style, qmark='').ask()
     if not playlist:
-      raise typer.Exit()
+      raise Exit()
 
   if not system:
     #start with the playlist system selected, if any
@@ -563,7 +563,7 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
     question = 'Which directory should be used to download thumbnails?'
     system = select(question, SYSTEMS, style=custom_style, qmark='', default=playlist_sys if playlist_sys in SYSTEMS else None).ask()
     if not system:
-      raise typer.Exit()
+      raise Exit()
 
   async def runit():
     try:
@@ -571,32 +571,32 @@ def mainfuzzsingle(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarc
         #temporary dir for downloads (required to prevent clobbering of files in case of no internet and filters being used)
         #parent directory of this temp dir is the same as the RA thumbnail dir to make mv the file just renaming it, not cp it
         with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_dir) as tmpdir:
-          typer.echo(typer.style(f'{playlist} -> {system}', bold=True))
+          echo(style(f'{playlist} -> {system}', bold=True))
           names = readPlaylistAndPrepareDirectories(Path(playlist_dir, playlist), tmpdir, thumbnails_dir)
           await downloader(names,system,wait_before,wait_after,filters,score,noimage,nomerge,nofail,nometa, \
                            hack,nosubtitle,verbose,basic_verbose,before,tmpdir,thumbnails_dir,client)
     except StopPlaylist as e:
       error(f'Cloudflare is down for {system}')
-      raise typer.Exit(code=1)
+      raise Exit(code=1)
     except StopProgram as e:
       error(f'Cancelled by user, exiting')
-      raise typer.Exit()
+      raise Exit()
   asyncio.run(runit(), debug=False)
 
-def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
-  wait_after: Optional[float] = typer.Option(None, '--delay-after', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.'),
-  wait_before: Optional[float] = typer.Option(None, '--delay', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download, enter continues.'),
-  filters: Optional[List[str]] = typer.Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter \'*\' redownloads all.'),
-  score: int = typer.Option(MAX_SCORE, '--min', min=0, max=MAX_SCORE, metavar='SCORE', help=f'0=any, 100=fuzzy match, {MAX_SCORE}=equal mininames,default. No-op with --no-fail.'),
-  nofail: bool = typer.Option(False, '--no-fail', help='Download any score. Equivalent to --score 0.'),
-  noimage: bool = typer.Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
-  nomerge: bool = typer.Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with --filter.'),
-  nosubtitle: bool = typer.Option(False, '--no-subtitle', help='Ignores text after last \' - \' or \': \'. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help.'),
-  nometa: bool = typer.Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
-  hack: bool = typer.Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
-  before: Optional[str] = typer.Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.'),
-  address: Optional[str] = typer.Option(ADDRESS, metavar='URL', help='URL with libretro-thumbnails server. For local files, git clone/unzip packs, run \'python3 -m http.server\' in parent dir, and use --address \'http://localhost:8000\'.'),
-  verbose: Optional[int] = typer.Option(None, '--verbose', min=1, metavar='N', help=f'Show mininame, len N list (maxscore, server mininame).')
+def mainfuzzall(cfg: Path = Argument(CONFIG, help='Path to the retroarch cfg file. If not default, asked from the user.'),
+  wait_after: Optional[float] = Option(None, '--delay-after', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.'),
+  wait_before: Optional[float] = Option(None, '--delay', min=1, max=MAX_WAIT_SECS, clamp=True, metavar='FLOAT', help='Seconds to skip thumbnails download, enter continues.'),
+  filters: Optional[List[str]] = Option(None, '--filter', metavar='GLOB', help='Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter \'*\' redownloads all.'),
+  score: int = Option(MAX_SCORE, '--min', min=0, max=MAX_SCORE, metavar='SCORE', help=f'0=any, 100=fuzzy match, {MAX_SCORE}=equal mininames,default. No-op with --no-fail.'),
+  nofail: bool = Option(False, '--no-fail', help='Download any score. Equivalent to --score 0.'),
+  noimage: bool = Option(False, '--no-image', help='Don\'t show images even with chafa installed.'),
+  nomerge: bool = Option(False, '--no-merge', help='Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with --filter.'),
+  nosubtitle: bool = Option(False, '--no-subtitle', help='Ignores text after last \' - \' or \': \'. \':\' can\'t occur in server names, so if the server has \'Name_ subtitle.png\' and not \'Name - subtitle.png\' (uncommon), this option doesn\'t help.'),
+  nometa: bool = Option(False, '--no-meta', help='Ignores () delimited metadata and may cause false positives. Forced with --before.'),
+  hack: bool = Option(False, '--hack', help='Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.'),
+  before: Optional[str] = Option(None, help='Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.'),
+  address: Optional[str] = Option(ADDRESS, metavar='URL', help='URL with libretro-thumbnails server. For local files, git clone/unzip packs, run \'python3 -m http.server\' in parent dir, and use --address \'http://localhost:8000\'.'),
+  verbose: Optional[int] = Option(None, '--verbose', min=1, metavar='N', help=f'Show length N list (maxscore, mininame cover link).')
   ):
   basic_verbose,playlist_dir,thumbnails_dir,PLAYLISTS,SYSTEMS = test_common_errors(cfg,None,None,address)
   if basic_verbose : noimage = True
@@ -611,10 +611,10 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
       async with lock_keys(), AsyncClient() as client:
         with TemporaryDirectory(prefix='libretrofuzz', dir=thumbnails_dir) as tmpdir:
           for playlist, system in notInSystems:
-            typer.echo(typer.style(f'Custom playlist skipped: ', fg=typer.colors.RED, bold=True) + \
-                       typer.style(f'{system}.lpl', bold=True))
+            echo(style(f'Custom playlist skipped: ', fg=RED, bold=True) + \
+                       style(f'{system}.lpl', bold=True))
           for playlist, system in inSystems:
-            typer.echo(typer.style(f'{system}.lpl -> {system}', bold=True))
+            echo(style(f'{system}.lpl -> {system}', bold=True))
             names = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
             try:
               await downloader(names,system,wait_before,wait_after,filters,score,noimage,nomerge,nofail,nometa, \
@@ -623,7 +623,7 @@ def mainfuzzall(cfg: Path = typer.Argument(CONFIG, help='Path to the retroarch c
               error(f'Cloudflare is down for {system}')
     except StopProgram as e:
       error(f'Cancelled by user, exiting')
-      raise typer.Exit()
+      raise Exit()
   asyncio.run(runit(), debug=False)
 
 async def downloadgamenames(client, system):
@@ -654,7 +654,7 @@ async def downloadgamenames(client, system):
       args.append(l1)
   except (RequestError,HTTPStatusError) as err:
     error(f'Could not get the remote thumbnail game names, exiting: {err}')
-    raise typer.Exit(code=1)
+    raise Exit(code=1)
   return args
 
 async def downloader(names: [(str,str)],
@@ -739,9 +739,17 @@ async def downloader(names: [(str,str)],
     if verbose:
       for r in reversed(result):
         thumb_normal, thumb_score, thumb_name = r
-        color = typer.colors.RED if thumb_score < score else typer.colors.GREEN
-        verbose_score = typer.style(f'{int(thumb_score)}', fg=f'{color}', bold=True)
-        verbose_name  = thumb_normal if basic_verbose else link(quote(thumb_name),thumb_normal)
+        color = RED if thumb_score < score else GREEN
+        verbose_score = style(f'{int(thumb_score)}', fg=f'{color}', bold=True)
+        #if the boxart exists link to it, otherwise link to a mobygames search
+        payload = None
+        if thumb_name in thumbs.Named_Boxarts:
+          payload = link(thumbs.Named_Boxarts[thumb_name],thumb_normal)
+          payload = style(payload, fg=MAGENTA)
+        else:
+          payload = link(SEARCHADDRESS+quote(thumb_name),thumb_normal)
+          payload = style(payload, fg=BLUE)
+        verbose_name  = thumb_normal if basic_verbose else payload
         verbose_format.insert(0, f"{verbose_score} {verbose_name}")
       verbose_format = ', '.join(verbose_format)
     elif len(result) > 0:
@@ -753,19 +761,19 @@ async def downloader(names: [(str,str)],
       if result[0][1] == result[1][1]:
         thumb_name2 = result[1][2]
     #formating legos
-    name_format    = nameaux if basic_verbose else link(quote(name),nameaux)
-    dull_format    = f'{name} -> {thumb_name}'
-    line_format    = name_format + ' -> ' + verbose_format if verbose else dull_format
-    success_format = f'{typer.style("Success",   fg=typer.colors.GREEN, bold=True)}: {line_format}'
-    failure_format = f'{typer.style("Failure",     fg=typer.colors.RED, bold=True)}: {line_format}'
-    missing_format = f'{typer.style("Missing",     fg=typer.colors.RED, bold=True)}: {line_format}'
-    skipped_format = f'{typer.style("Skipped",        fg=(135,135,135), bold=True)}: {line_format}'
-    nomerge_format = f'{typer.style("Nomerge",        fg=(128,128,128), bold=True)}: {line_format}'
+    name_format    = style(name, bold=True)
+    dull_format    = name_format + ': ' + thumb_name
+    line_format    = name_format + ': ' + verbose_format if verbose else dull_format
+    success_format = f'{style("Success",   fg=GREEN, bold=True)}: {line_format}'
+    failure_format = f'{style("Failure",     fg=RED, bold=True)}: {line_format}'
+    missing_format = f'{style("Missing",     fg=RED, bold=True)}: {line_format}'
+    skipped_format = f'{style("Skipped",        fg=(135,135,135), bold=True)}: {line_format}'
+    nomerge_format = f'{style("Nomerge",        fg=(128,128,128), bold=True)}: {line_format}'
     #these can't support links because of tqdm, show the normal names and replace them after
-    getting_format = f'{typer.style("Getting",    fg=typer.colors.BLUE, bold=True)}: {dull_format}' \
-                     + typer.style(' {percentage:3.0f}%', fg=typer.colors.BLUE, bold=True)
-    waiting_format = f'{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {dull_format}' \
-                     + typer.style(' {remaining_s:2.1f}s', fg=typer.colors.RED, bold=True)                         
+    getting_format = f'{style("Getting",    fg=BLUE, bold=True)}: {dull_format}' \
+                     + style(' {percentage:3.0f}%', fg=BLUE, bold=True)
+    waiting_format = f'{style("Waiting",  fg=YELLOW, bold=True)}: {dull_format}' \
+                     + style(' {remaining_s:2.1f}s', fg=RED, bold=True)
     if thumb_name and thumb_score >= score:
       allow = True
       #these parent directories were created when reading the playlist, more efficient than doing it a playlist game loop
@@ -784,7 +792,7 @@ async def downloader(names: [(str,str)],
         allow = missing_thumbs == 3
         #despite the above, print only for when it would download if it was allowed, otherwise it is confusing
         if not allow and missing_server_thumbs > 0:
-          typer.echo(nomerge_format)
+          echo(nomerge_format)
       if allow:
         first_wait      = wait_before is not None
         downloaded_once = False
@@ -810,19 +818,19 @@ async def downloader(names: [(str,str)],
             if wait_after is not None:
               await printwait(wait_after, waiting_format)
         except StopProgram as e:
-          typer.echo(skipped_format)
+          echo(skipped_format)
           raise e
         except StopDownload as e:
           downloaded_once = False
-          typer.echo(skipped_format)
+          echo(skipped_format)
         if downloaded_once:
           for (old, new) in downloaded_dict.values():
             if new.exists():
               shutil.move(new, old)
-          typer.echo(success_format)
+          echo(success_format)
     else:
       if verbose:
-        typer.echo(failure_format)
+        echo(failure_format)
       if filters:
         #nothing to download but we want to remove images that may be there in the case of --filter.
         for dirname in Thumbs._fields:
@@ -845,12 +853,12 @@ async def download(client, url, destination, getting_format, missing_format, wai
         if r.status_code == 521: #cloudflare exploded, skip the whole playlist
           raise StopPlaylist()
         if r.status_code == 404: #broken image or symlink link, skip just this thumb
-          typer.echo(missing_format + ' ' + url)
+          echo(missing_format + ' ' + url)
           return False
         r.raise_for_status()     #error before reading the header goes into retrying
         length = int(r.headers['Content-Length'])
         if length < 100:         #obviously corrupt 'thumbnail', skip this thumb
-          typer.echo(missing_format + ' ' + url)
+          echo(missing_format + ' ' + url)
           return False
         with open(destination, 'w+b') as f:
           if first_wait:
@@ -864,7 +872,7 @@ async def download(client, url, destination, getting_format, missing_format, wai
     except (RequestError,HTTPStatusError) as e:
       if max_retries <= 0:
         error(f'Download max retries exceeded, exiting')
-        raise typer.Exit(code=1)
+        raise Exit(code=1)
       max_retries -= 1
 
 def displayImages(downloaded: dict):
@@ -940,11 +948,11 @@ def displayImages(downloaded: dict):
     subprocess.run([viewer, '-'], input=f.getbuffer())
 
 def fuzzsingle():
-  typer.run(mainfuzzsingle)
+  run(mainfuzzsingle)
 
 def fuzzall():
-  typer.run(mainfuzzall)
+  run(mainfuzzall)
 
 if __name__ == "__main__":
   error('Please run libretro-fuzz or libretro-fuzzall instead of running the script directly')
-  raise typer.Exit(code=1)
+  raise Exit(code=1)

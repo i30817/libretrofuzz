@@ -69,7 +69,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --before TEXT         Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.
   --address URL         | URL with libretro-thumbnails server. For local files, git clone/unzip packs, run ``'python3 -m http.server'`` in parent dir, and use ``--address 'http://localhost:8000'``.
                         | [default: https://thumbnails.libretro.com]
-  --verbose N           | Show mininame, len N list (maxscore, server mininame).
+  --verbose N           | Show length N list (maxscore, mininame cover link).
                         | [x>=1]
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or customize the installation.
