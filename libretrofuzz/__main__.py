@@ -29,6 +29,7 @@ import asyncio
 import subprocess
 import configparser
 import platform
+from functools import partial
 
 # external libraries
 from PIL import Image, ImageOps
@@ -37,7 +38,7 @@ from bs4 import BeautifulSoup
 from questionary import Style, select
 from httpx import RequestError, HTTPStatusError, Client, AsyncClient
 from tqdm import trange, tqdm
-from typer.colors import YELLOW, RED, BLUE, GREEN, MAGENTA
+from typer.colors import YELLOW, RED, BLUE, GREEN
 from typer import style, echo, run, Exit, Argument, Option
 from prompt_toolkit.input import create_input
 
@@ -55,7 +56,6 @@ except ImportError:
 ###########################################
 
 ADDRESS = "https://thumbnails.libretro.com"
-SEARCHADDRESS = "https://www.mobygames.com/search/?q="
 MAX_SCORE = 200
 MAX_RETRIES = 3
 MAX_WAIT_SECS = 30
@@ -672,7 +672,11 @@ def mainfuzzsingle(
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
     verbose: Optional[int] = Option(
-        None, "--verbose", min=1, metavar="N", help="Show length N list (maxscore, mininame cover link)."
+        None,
+        "--verbose",
+        min=1,
+        metavar="N",
+        help="Show length N list (maxscore, mininame cover, emoji hyperlinks).",
     ),
 ):
     if playlist and not playlist.lower().endswith(".lpl"):
@@ -945,6 +949,9 @@ async def downloader(
     if nofail:
         score = 0
 
+    # built the function that will be called to print data, filling in some fixed arguments
+    strfy_runtime = partial(strfy, score, verbose, nub_verbose)
+
     # preprocess data so it's not redone every loop iteration.
     title_scorer = TitleScorer()
     # normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
@@ -993,55 +1000,18 @@ async def downloader(
         nameaux = norm(nameaux, nometa, hack)
 
         # operate on cache (to speed up by not applying normalization every iteration)
-        # the normalization can make it so that the winner has the same score as the runner up(s) so to make sure we catch at least
-        # two thumbnails for cases where that happens, we check both best scores if we can't find a thumb in a server directory
+        # the normalization can make it so that the winner has the same score as the runner up(s)
+        # so to make sure we catch at least two candidates for cases where that happens
+        # it's a improvement because sometimes server thumbnail types have case letter typos
         result = process.extract(
             nameaux, remote_names, scorer=title_scorer, processor=None, limit=verbose or 2, score_cutoff=None
         )
-        # build the verbose format and decompose the first result, with a optimization if verbose is not on
-        thumb_normal, thumb_score, thumb_name = (None, 0, None)
-        verbose_format = []
-        if verbose:
-            for r in reversed(result):
-                thumb_normal, thumb_score, thumb_name = r
-                color = RED if thumb_score < score else GREEN
-                verbose_score = style(f"{int(thumb_score)}", fg=f"{color}", bold=True)
-                # if the boxart exists link to it, otherwise link to a mobygames search
-                payload = None
-                if thumb_name in thumbs.Named_Boxarts:
-                    payload = link(thumbs.Named_Boxarts[thumb_name], thumb_normal)
-                    payload = style(payload, fg=MAGENTA)
-                else:
-                    payload = link(SEARCHADDRESS + quote(thumb_name), thumb_normal)
-                    payload = style(payload, fg=BLUE)
-                verbose_name = thumb_normal if nub_verbose else payload
-                verbose_format.insert(0, f"{verbose_score} {verbose_name}")
-            verbose_format = ", ".join(verbose_format)
-        elif len(result) > 0:
-            thumb_normal, thumb_score, thumb_name = result[0]
-        # hack, if result 1 and 2 have equal scores use the second thumbnail as a alternative if missing a thumb type
-        # this is done because it's relatively common for the server to have a case mistake on thumb types
-        thumb_name2 = None
-        if len(result) >= 2:
-            if result[0][1] == result[1][1]:
-                thumb_name2 = result[1][2]
-        # formating legos
-        name_format = style(name, bold=True)
-        dull_format = name_format + ": " + thumb_name
-        line_format = name_format + ": " + verbose_format if verbose else dull_format
-        success_format = f'{style("Success",   fg=GREEN, bold=True)}: {line_format}'
-        failure_format = f'{style("Failure",     fg=RED, bold=True)}: {line_format}'
-        missing_format = f'{style("Missing",     fg=RED, bold=True)}: {line_format}'
-        skipped_format = f'{style("Skipped",        fg=(135,135,135), bold=True)}: {line_format}'
-        nomerge_format = f'{style("Nomerge",        fg=(128,128,128), bold=True)}: {line_format}'
-        # these can't support links because of tqdm, show the normal names and replace them after
-        getting_format = f'{style("Getting",    fg=BLUE, bold=True)}: {dull_format}' + style(
-            " {percentage:3.0f}%", fg=BLUE, bold=True
-        )
-        waiting_format = f'{style("Waiting",  fg=YELLOW, bold=True)}: {dull_format}' + style(
-            " {remaining_s:2.1f}s", fg=RED, bold=True
-        )
-        if thumb_name and thumb_score >= score:
+        _, max_score, _ = (result and result[0]) or (None, -1, None)
+        winners = [x for x in result if x[1] == max_score and x[1] >= score]
+        show = result if verbose else winners
+        name_format = style(name + ": ", bold=True)
+
+        if winners:
             allow = True
             # these parent directories were created when reading the playlist
             # more efficient than doing it a playlist game loop
@@ -1051,73 +1021,106 @@ async def downloader(
                 # to implement no-merge you have to disable downloads on
                 # 'at least one' thumbnail (including user added ones)
                 missing_thumbs = 0
-                missing_server_thumbs = 0
+                served__thumbs = False
                 for dirname in Thumbs._fields:
                     real = Path(real_thumb_dir, dirname, name + ".png")
                     if not real.exists():
                         missing_thumbs += 1
-                        if thumb_name in getattr(thumbs, dirname) or thumb_name2 in getattr(thumbs, dirname):
-                            missing_server_thumbs += 1
+                        if not served__thumbs:
+                            served__thumbs = any(map(lambda x: x[2] in getattr(thumbs, dirname), winners))
                 allow = missing_thumbs == 3
                 # despite the above, print only for when it would download
                 # if it was allowed, otherwise it is confusing
-                if not allow and missing_server_thumbs > 0:
+                if not allow and served__thumbs:
+                    name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+                    nomerge_format = f'{style("Nomerge",     fg=(128,128,128), bold=True)}: {name_format}'
                     echo(nomerge_format)
             if allow:
                 first_wait = wait_before is not None
                 downloaded_once = False
                 # dictionary of thumbnailtype -> (old Path, new Path), paths may not exist
                 downloaded_dict = dict()
+                # dictionary of (thumbnailtype,winner) -> url
+                urls = dict()
+                # used inside a loop and more than once, build outside
+                dull_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+                # these can't support links because of tqdm, show the normal names and replace them after
+                getting_format = f'{style("Getting",    fg=BLUE, bold=True)}: {dull_format}' + style(
+                    " {percentage:3.0f}%", fg=BLUE, bold=True
+                )
+                waiting_format = f'{style("Waiting",  fg=YELLOW, bold=True)}: {dull_format}' + style(
+                    " {remaining_s:2.1f}s", fg=RED, bold=True
+                )
                 try:
                     for dirname in Thumbs._fields:
                         real = Path(real_thumb_dir, dirname, name + ".png")
                         temp = Path(down_thumb_dir, dirname, name + ".png")
                         downloaded_dict[dirname] = (real, temp)
-                        # something to download
-                        thumbmap = getattr(thumbs, dirname)
-                        url = (
-                            thumbmap[thumb_name]
-                            if thumb_name in thumbmap
-                            else thumbmap.get(thumb_name2, None)
-                        )
-                        # with filters/reset you always download, and without only if it doesn't exist already.
-                        if url and (filters or not real.exists()):
-                            if await download(
-                                client,
-                                url,
-                                temp,
-                                getting_format,
-                                missing_format,
-                                waiting_format,
-                                first_wait,
-                                wait_before,
-                                MAX_RETRIES,
-                            ):
-                                first_wait = False
-                                downloaded_once = True
-                        elif filters:
-                            # nothing to download but we want to remove images that may be there in the case of --filter.
-                            real.unlink(missing_ok=True)
+                        for winner in winners:
+                            t_norm, t_score, t_name = winner
+                            # something to download
+                            url = getattr(thumbs, dirname).get(t_name, None)
+                            if not url:
+                                continue
+
+                            # with filters/reset you always download, and without only if it doesn't exist already.
+                            if filters or not real.exists():
+                                if await download(
+                                    client,
+                                    url,
+                                    temp,
+                                    getting_format,
+                                    waiting_format,
+                                    first_wait,
+                                    wait_before,
+                                    MAX_RETRIES,
+                                ):
+                                    first_wait = False
+                                    downloaded_once = True
+                                    urls[(dirname, winner)] = url
+                                    break
+                    # Delete old images in the case of --filter.
+                    # this assumes internet is on, which is fair because
+                    # to get here you needed to have downloaded things
+                    # but it will skip if the user cancels, as is logical
+                    # this needs to be before image display
+                    if filters:
+                        for old, _ in downloaded_dict.values():
+                            old.unlink(missing_ok=True)
                     if not noimage and viewer and downloaded_once:
                         displayImages(downloaded_dict)
                         if wait_after is not None:
                             await printwait(wait_after, waiting_format)
+                    if downloaded_once:
+                        for old, new in downloaded_dict.values():
+                            if new.exists():
+                                shutil.move(new, old)
+
+                        name_format = name_format + ", ".join((strfy_runtime(x, urls) for x in show))
+                        success_format = f'{style("Success",   fg=GREEN, bold=True)}: {name_format}'
+                        echo(success_format)
+                    else:
+                        name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+                        missing_format = f'{style("Missing",   fg=RED,   bold=True)}: {name_format}'
+                        echo(missing_format)
                 except StopProgram as e:
+                    name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+                    skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
                     echo(skipped_format)
                     raise e
                 except StopDownload:
-                    downloaded_once = False
+                    name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+                    skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
                     echo(skipped_format)
-                if downloaded_once:
-                    for old, new in downloaded_dict.values():
-                        if new.exists():
-                            shutil.move(new, old)
-                    echo(success_format)
         else:
             if verbose:
+                name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+                failure_format = f'{style("Failure",     fg=RED, bold=True)}: {name_format}'
                 echo(failure_format)
+            # same idea as above can't be unified because
+            # the above delete needs to be after downloads
+            # but before displaying the image
             if filters:
-                # nothing to download but we want to remove images that may be there in the case of --filter.
                 for dirname in Thumbs._fields:
                     Path(thumbnails_dir, destination, dirname, name + ".png").unlink(missing_ok=True)
 
@@ -1130,16 +1133,29 @@ async def printwait(wait: Optional[float], waiting_format: str):
             await asyncio.sleep(0.1)
 
 
+def strfy(required_score, verbose, nub_verbose, r, urlsdict=None):
+    thumb_norm, thumb_score, thumb_name = r
+    score_color = RED if thumb_score < required_score else GREEN
+    score_text = style(f"{int(thumb_score)}", fg=f"{score_color}", bold=True)
+    if nub_verbose:
+        return f"{score_text} {thumb_norm}"
+    elif urlsdict:
+        url1 = urlsdict.get((Thumbs._fields[0], r), None)
+        url2 = urlsdict.get((Thumbs._fields[1], r), None)
+        url3 = urlsdict.get((Thumbs._fields[2], r), None)
+    else:
+        url1 = None
+        url2 = None
+        url3 = None
+    thumb_text = thumb_norm if verbose else thumb_name
+    linked1 = style(link(url1, "🎴")) if url1 else ""
+    linked2 = style(link(url2, "🎬")) if url2 else ""
+    linked3 = style(link(url3, "📸")) if url3 else ""
+    return f"{score_text} {thumb_text}{linked1}{linked2}{linked3}"
+
+
 async def download(
-    client,
-    url,
-    destination,
-    getting_format,
-    missing_format,
-    waiting_format,
-    first_wait,
-    wait_before,
-    max_retries,
+    client, url, destination, getting_format, waiting_format, first_wait, wait_before, max_retries
 ):
     """returns True if downloaded. To download, it must have waited, if first_wait is True.
     Exceptions may happen instead of returning False, but they are all caught outside
@@ -1152,12 +1168,10 @@ async def download(
                 if r.status_code == 521:  # cloudflare exploded, skip the whole playlist
                     raise StopPlaylist()
                 if r.status_code == 404:  # broken image or symlink link, skip just this thumb
-                    echo(missing_format + " " + url)
                     return False
                 r.raise_for_status()  # error before reading the header goes into retrying
                 length = int(r.headers["Content-Length"])
                 if length < 100:  # obviously corrupt 'thumbnail', skip this thumb
-                    echo(missing_format + " " + url)
                     return False
                 with open(destination, "w+b") as f:
                     if first_wait:
