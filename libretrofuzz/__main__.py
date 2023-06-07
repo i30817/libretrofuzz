@@ -996,7 +996,7 @@ async def downloader(
         # the normalization can make it so that the winner has the same score as the runner up(s) so to make sure we catch at least
         # two thumbnails for cases where that happens, we check both best scores if we can't find a thumb in a server directory
         result = process.extract(
-            nameaux, remote_names, scorer=title_scorer, processor=None, limit=verbose or 1, score_cutoff=None
+            nameaux, remote_names, scorer=title_scorer, processor=None, limit=verbose or 2, score_cutoff=None
         )
         # build the verbose format and decompose the first result, with a optimization if verbose is not on
         thumb_normal, thumb_score, thumb_name = (None, 0, None)
