@@ -18,8 +18,18 @@ tqdm = "^4.65.0"
 prompt_toolkit = "^3.0.30"
 pillow = "^9.2.0"
 regex = "^2023.6.3"
-colorama = "^0.4.6"
 
+[tool.black]
+line-length = 110
+skip_magic_trailing_comma = true
+
+[tool.ruff]
+#this is because black already 'fixed' lines... except comments, which it refuses
+line-length = 9999
+# Only allow autofix behavior for `E` and `F` rules.
+fixable = ["E", "F"]
+# Allow except without exception
+ignore = ["E722"]
 
 [tool.poetry.scripts]
 libretro-fuzz = 'libretrofuzz.__main__:fuzzsingle'
