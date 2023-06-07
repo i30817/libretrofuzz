@@ -124,17 +124,17 @@ class StopProgram(Exception):
         super().__init__()
 
 
-skip = False
-escape = False
-enter = False
-
-
 @contextmanager
 def handleContinueDownload():
     try:
         yield
     except ContinueDownload:
         pass
+
+
+skip = False
+escape = False
+enter = False
 
 
 def checkDownload():
@@ -213,7 +213,8 @@ async def lock_keys():
     finally:
         # in windows 7 and python 3.8 for some reason prompt_toolkit
         # tries to send a 'handle ready' not 'remove' event after detaching (the with above)
-        # not sure if it happens in python later than 3.8. This throws a 'RuntimeError: Event Loop is closed'
+        # not sure if it happens in python later than 3.8.
+        # This throws a 'RuntimeError: Event Loop is closed'
         # the sleep avoids it
         if sys.platform == "win32":
             await asyncio.sleep(0.1)
@@ -392,7 +393,7 @@ def normalizer(t, nometa, hack):
     # this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
     #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
     t = t.replace(" and ", "")
-    # Tries to make roman numerals in the range 1-20 equivalent to normal numbers (to handle names that change it).
+    # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
     # If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
     t = t.replace("xviii", "18")
     t = t.replace("xvii", "17")
