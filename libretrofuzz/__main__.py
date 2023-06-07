@@ -184,9 +184,9 @@ async def lock_keys():
 def link(uri, label=None, parameters=''):
   '''
   Found in https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+  not being used 'correctly' in this application - i only want the hover text
+  in gnome, so it is fed here with no uri scheme, just uri encoded
   '''
-  if type(uri) is str: #just hover text and show same hyperlinks if possible
-    uri = quote(uri)
   if label is None:
     label = uri
   # OSC 8 ; params ; URI ST <name> OSC 8 ;; ST
@@ -741,7 +741,7 @@ async def downloader(names: [(str,str)],
         thumb_normal, thumb_score, thumb_name = r
         color = typer.colors.RED if thumb_score < score else typer.colors.GREEN
         verbose_score = typer.style(f'{int(thumb_score)}', fg=f'{color}', bold=True)
-        verbose_name  = thumb_normal if basic_verbose else link(thumb_name, thumb_normal)
+        verbose_name  = thumb_normal if basic_verbose else link(quote(thumb_name),thumb_normal)
         verbose_format.insert(0, f"{verbose_score} {verbose_name}")
       verbose_format = ', '.join(verbose_format)
     elif len(result) > 0:
@@ -753,7 +753,7 @@ async def downloader(names: [(str,str)],
       if result[0][1] == result[1][1]:
         thumb_name2 = result[1][2]
     #formating legos
-    name_format    = nameaux if basic_verbose else link(name,nameaux)
+    name_format    = nameaux if basic_verbose else link(quote(name),nameaux)
     dull_format    = f'{name} -> {thumb_name}'
     line_format    = name_format + ' -> ' + verbose_format if verbose else dull_format
     success_format = f'{typer.style("Success",   fg=typer.colors.GREEN, bold=True)}: {line_format}'
