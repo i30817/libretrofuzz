@@ -761,6 +761,7 @@ async def downloader(names: [(str,str)],
     missing_format = f'{typer.style("Missing",     fg=typer.colors.RED, bold=True)}: {line_format}'
     skipped_format = f'{typer.style("Skipped",        fg=(135,135,135), bold=True)}: {line_format}'
     nomerge_format = f'{typer.style("Nomerge",        fg=(128,128,128), bold=True)}: {line_format}'
+    #these can't support links because of tqdm, show the normal names and replace them after
     getting_format = f'{typer.style("Getting",    fg=typer.colors.BLUE, bold=True)}: {dull_format}' \
                      + typer.style(' {percentage:3.0f}%', fg=typer.colors.BLUE, bold=True)
     waiting_format = f'{typer.style("Waiting",  fg=typer.colors.YELLOW, bold=True)}: {dull_format}' \
