@@ -343,7 +343,7 @@ def normalizer(t, nometa, hack):
     if not hack:
         t = removeparenthesis(t, "[", "]")
     # change all common ascci symbol characters we aren't going to use after this (, and ')
-    t = replacemany(t, '_()[]{}-.!?#"', " ")
+    t = replacemany(t, '_()[]{}-.!?#"', "")
     # strips just because the user may have made a mistake naming the source
     # (or the replacement above introduce boundary spaces)
     t = t.strip()
