@@ -1,12 +1,17 @@
 #! /usr/bin/env python3
 
 # this downloads thumbnails for retroarch playlists
-# it uses fuzzy matching to find the most similar name to the names, based on the playlist description.
-# there may be false positives, especially if the thumbnail server does not have the game but does have
-# another similarly named game - happens on series or playlists where multiple versions of a game coexist.
+# it uses fuzzy matching to find the most similar name
+# to the server names, based on the playlist description.
+# there may be false positives, especially if the thumbnail
+# server does not have the game but does have another similarly
+# named game - happens often on series or playlists where
+# multiple versions of a game coexist.
 
-# Although a game playlist entry may have a different db this script doesn't handle that to simplify
-# the caching of names, since it's rare, so it assumes all entries in a playlist will have the same system.
+# Although a game playlist entry may have a different db this
+# script doesn't handle that to simplify the caching of names,
+# since it's rare, it assumes all entries in a playlist will
+# have the same system.
 
 from pathlib import Path
 from typing import Optional, List
@@ -154,8 +159,10 @@ def checkDownload():
 
 
 def checkEscape():
-    """only called when it doesn't matter if a escape will happen, usually at the start of a iteration or the preparation phase"""
-    # so we can reset skip here, since it wont matter either way and will help remove false skip positives from the key event loop
+    """only called when it doesn't matter if a escape will happen,
+    usually at the start of a iteration or the preparation phase"""
+    # we can reset variables here, since it wont matter either way and
+    # will help remove false skip positives from the key event loop
     global skip
     skip = False
     global enter
@@ -212,10 +219,9 @@ async def lock_keys():
                 yield
     finally:
         # in windows 7 and python 3.8 for some reason prompt_toolkit
-        # tries to send a 'handle ready' not 'remove' event after detaching (the with above)
-        # not sure if it happens in python later than 3.8.
-        # This throws a 'RuntimeError: Event Loop is closed'
-        # the sleep avoids it
+        # tries to send a 'handle ready' not 'remove' event after
+        # detaching (the with above) not sure if it happens in python
+        # later than 3.8. The sleep avoids a 'RuntimeError: Event Loop is closed'
         if sys.platform == "win32":
             await asyncio.sleep(0.1)
 
@@ -253,7 +259,8 @@ before_metadata = regex.compile(r"(^[^[({]*)")
 
 
 def nosubtitle_aux(t, subtitle_marker=" - "):
-    # last subtitle marker and everything there until the end (last because i noticed that 'subsubtitles' exist,
+    # last subtitle marker and everything there until the
+    # end, last because i noticed that 'subsubtitles' exist
     # for instance, ultima 7 - part 1|2 - subtitle
     try:
         pattern = spatterns[subtitle_marker]
@@ -315,7 +322,7 @@ class TitleScorer(object):
             # token_set_ratio gives that 100. Skip if the smaller name length is less than 20%
             return 0
         # names are whitespace and case normalized, but they keep spaces
-        # for token_set_ratio. But still test this case.
+        # for token_set_ratio. But still test this case, since it's common
         if s1 == s2 or "".join(s1.split()) == "".join(s2.split()):
             return MAX_SCORE
         prefix = len(os.path.commonprefix([s1, s2]))
@@ -351,7 +358,7 @@ def normalizer(t, nometa, hack):
     # remove any number leading 0, except at the end or the start of the string
     # where it is likely a important part of the name, not a file manager sort workaround
     t = regex.sub(zero_lead_pattern, r"\1\2", t)
-    # CamelCaseNames for local labels are common when there are no spaces,
+    # CamelCaseNames for local labels are common when there are no spaces, split them
     # do this to normalize definite articles in normalization with spaces only (minimizes changes)
     t = " ".join([s.strip() for s in regex.split(camelcase_pattern, t) if s])
     # normalize case
@@ -389,7 +396,7 @@ def normalizer(t, nometa, hack):
     t = removeprefix(t, "o ")
     t = removefirst(t, ", a")
     t = removeprefix(t, "a ")
-    # remove the symbols used in the definite article normalization
+    # remove the symbols used in the definite article normalization and word splitting
     t = replacemany(t, ",'“”\"", "")
     # this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
     #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
@@ -566,11 +573,11 @@ def common_errors(cfg: Path, playlist: str, system: str, address: str):
     if playlist and Path(playlist_dir, playlist) not in playlists:
         error(f"Invalid user provided playlist: {playlist}")
         raise Exit(code=1)
-    # windows can only print images and urls in windows 10 up (requires a better console)
-    # since python 3.8 is the very minimum of this application, it can only be used on windows 7 and up
-    # ie: we only have to disallow 7, 8
-    nub_verbose = False
 
+    # windows can only print images and urls in windows 10 up (requires a better console)
+    # since python 3.8 is the very minimum of this application, and it's for windows 7 and up
+    # we only have to disallow 7, 8
+    nub_verbose = False
     if sys.platform == "win32" and platform.release() in ("7", "8", "8.1"):
         echo("Disabling rich verbose and image output because your windows does not support it")
         nub_verbose = True
@@ -893,7 +900,7 @@ async def downloadgamenames(client, system):
                 async for chunk in r.aiter_text(4096):
                     checkEscape()
                     response += chunk
-            # not found is ok, since some server system directories do not have all the subdirectories
+            # not found is ok, some server system directories don't have all the subdirectories
             if r.status_code == 404:
                 l1 = {}
             elif r.status_code == 521:
@@ -946,7 +953,7 @@ async def downloader(
     if nofail:
         score = 0
 
-    # built the function that will be called to print data, filling in some fixed arguments
+    # build the function that will be called to print data, filling in some fixed arguments
     strfy_runtime = partial(strfy, score, verbose, nub_verbose)
 
     # preprocess data so it's not redone every loop iteration.
@@ -964,11 +971,9 @@ async def downloader(
         # if the user used filters, filter everything that doesn't match any of the globs
         if filters and not any(map(lambda x: fnmatch.fnmatch(name, x), filters)):
             continue
-        # to simplify this code, the forbidden characters are replaced twice,
-        # on the string that is going to be the filename and the modified string copy of that that is going to be matched.
-        # it could be done only once, but that would require separating the colon character for subtitle matching,
-        # and the 'before' operation would have to find the index before the match to apply it after. A mess.
 
+        # to simplify this code, the forbidden characters are replaced twice, on the string
+        # that is going to be the filename and the string copy that is going to be matched.
         nameaux = name
 
         #'before' has priority over subtitle removal
@@ -982,8 +987,8 @@ async def downloader(
 
         # there is a second form of subtitles, which doesn't appear in the thumbnail server
         # but can appear in linux game names. It uses the colon character, which is forbidden
-        # in windows. Note that this does mean that if the servername has 'Name_ subtitle.png'
-        # and not 'Name - subtitle.png' there is less chance of a match, but that is rarer than opposite.
+        # in windows. Note that this means that if the servername has 'Name_ subtitle.png',
+        # not 'Name - subtitle.png' it has little chance of a match, but that's rarer than opposite.
         # not to mention that this only applies if the user signals 'no-subtitle',
         # which presumably means they tried without it - which does match.
         if nosubtitle:
@@ -1077,10 +1082,11 @@ async def downloader(
                                     urls[(dirname, winner)] = url
                                     break
                     # Delete old images in the case of --filter.
-                    # this assumes internet is on, which is fair because
-                    # to get here you needed to have downloaded things
-                    # but it will skip if the user cancels, as is logical
-                    # this needs to be before image display
+                    # internet not available will exit the program
+                    # so this won't happen in a loop in that case
+                    # broken/not found server links WILL get deleted
+                    # it will also skip if the user cancels
+                    # as is logical this is before image display
                     if filters:
                         for old, _ in downloaded_dict.values():
                             old.unlink(missing_ok=True)
@@ -1092,7 +1098,6 @@ async def downloader(
                         for old, new in downloaded_dict.values():
                             if new.exists():
                                 shutil.move(new, old)
-
                         name_format = name_format + ", ".join((strfy_runtime(x, urls) for x in show))
                         success_format = f'{style("Success",   fg=GREEN, bold=True)}: {name_format}'
                         echo(success_format)
@@ -1226,7 +1231,8 @@ def displayImages(downloaded: dict):
         x = max(round(x * wanted_box_y / y), 1)
         y = wanted_box_y
     box = box.resize((x, y))
-    # the right side will adjust the width until title and snap are the same width and the desired height is reached (minus inner borders).
+    # the right side will adjust the width until title and snap are the
+    # same width and the desired height is reached (minus inner borders).
     wanted_y = wanted_box_y - BORDER_SIZE * 2
     x1, y1 = title.size
     x2, y2 = snap.size
