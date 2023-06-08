@@ -332,7 +332,7 @@ class TitleScorer(object):
 # -----------------------------------------------------------------------------------------------------------------------------
 # Normalization functions, part of the functions that change both local labels and remote names to be more similar to compare
 # -----------------------------------------------------------------------------------------------------------------------------
-camelcase_pattern = regex.compile(r"(\p{Lu}\p{Ll}+)")
+camelcase_pattern = regex.compile(r"(\p{Lu}[\p{Ll},'“”\"]+)")
 # number sequences in the middle (not start or end) of a string that start with 0
 zero_lead_pattern = regex.compile(r"([^\d])0+([1-9])")
 
@@ -389,7 +389,7 @@ def normalizer(t, nometa, hack):
     t = removefirst(t, ", a")
     t = removeprefix(t, "a ")
     # remove the symbols used in the definite article normalization
-    t = replacemany(t, ",'", "")
+    t = replacemany(t, ",'“”\"", "")
     # this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
     #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
     t = t.replace(" and ", "")
@@ -1095,10 +1095,6 @@ async def downloader(
                         name_format = name_format + ", ".join((strfy_runtime(x, urls) for x in show))
                         success_format = f'{style("Success",   fg=GREEN, bold=True)}: {name_format}'
                         echo(success_format)
-                    else:
-                        name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
-                        missing_format = f'{style("Missing",   fg=RED,   bold=True)}: {name_format}'
-                        echo(missing_format)
                 except StopProgram as e:
                     name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                     skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
