@@ -1006,7 +1006,7 @@ async def downloader(
         _, max_score, _ = (result and result[0]) or (None, -1, None)
         winners = [x for x in result if x[1] == max_score and x[1] >= score]
         show = result if verbose else winners
-        name_format = style(nameaux + ": ", bold=True) if verbose else style(name + ": ", bold=True)
+        name_format = style((nameaux if verbose else name) + ": ", bold=True)
 
         if winners:
             allow = True
