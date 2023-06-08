@@ -314,8 +314,9 @@ class TitleScorer(object):
             # images, they get caught up on a short title being completely contained in another
             # token_set_ratio gives that 100. Skip if the smaller name length is less than 20%
             return 0
-        # names are whitespace and case normalized
-        if s1 == s2:
+        # names are whitespace and case normalized, but they keep spaces
+        # for token_set_ratio. But still test this case.
+        if s1 == s2 or "".join(s1.split()) == "".join(s2.split()):
             return MAX_SCORE
         prefix = len(os.path.commonprefix([s1, s2]))
         # score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
