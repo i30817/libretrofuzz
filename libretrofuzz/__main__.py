@@ -672,11 +672,7 @@ def mainfuzzsingle(
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
     verbose: Optional[int] = Option(
-        None,
-        "--verbose",
-        min=1,
-        metavar="N",
-        help="Show length N list (maxscore, mininame cover, emoji hyperlinks).",
+        None, "--verbose", min=1, metavar="N", help="Show length N list: score, mininame, emoji hyperlinks."
     ),
 ):
     if playlist and not playlist.lower().endswith(".lpl"):
@@ -823,7 +819,7 @@ def mainfuzzall(
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
     verbose: Optional[int] = Option(
-        None, "--verbose", min=1, metavar="N", help="Show length N list (maxscore, mininame cover link)."
+        None, "--verbose", min=1, metavar="N", help="Show length N list: score, mininame, emoji hyperlinks."
     ),
 ):
     (nub_verbose, playlist_dir, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
