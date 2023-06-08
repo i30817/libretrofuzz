@@ -18,6 +18,7 @@ from typing import Optional, List
 from urllib.request import unquote, quote
 from tempfile import TemporaryDirectory
 from contextlib import asynccontextmanager, contextmanager
+from functools import partial
 from itertools import chain
 from struct import unpack
 import json
@@ -34,7 +35,6 @@ import asyncio
 import subprocess
 import configparser
 import platform
-from functools import partial
 
 # external libraries
 from PIL import Image, ImageOps
@@ -64,7 +64,7 @@ ADDRESS = "https://thumbnails.libretro.com"
 MAX_SCORE = 200
 MAX_RETRIES = 3
 MAX_WAIT_SECS = 30
-# 00-1f are ascii control codes, rest is 'normal' illegal windows filename chars according to powershell + &
+# 00-1f are ascii control codes, rest are illegal windows filename chars according to powershell + &
 forbidden = regex.compile(
     r"[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008"
     + r"\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015"
@@ -73,12 +73,14 @@ forbidden = regex.compile(
 # external terminal image viewer application
 viewer = None
 
-# makes a class with these fields, which are the subdir names on the server system dir of the types of thumbnails
+# makes a class with these fields, the subdir names on the server system dir of the types of thumbnails
 Thumbs = collections.namedtuple("Thumbs", ["Named_Boxarts", "Named_Titles", "Named_Snaps"])
 # this is for 64 bits too
 if sys.platform == "win32":
-    # this order is to make 'portable' installs have priority in windows, a concept that doesn't exist in linux or macosx
-    # these are the default 32 and 64 bits installer paths, since there is no way to know what the user choses, check the defaults only.
+    # this order is to make 'portable' installs have priority in windows
+    # a concept that doesn't exist in linux or macosx
+    # these are the default 32 and 64 bits installer paths, since there
+    # is no way to know what the user choses, check the defaults only.
     CONFIG = Path(r"C:/RetroArch-Win64/retroarch.cfg")
     if not CONFIG.exists():
         CONFIG = Path(r"C:/RetroArch/retroarch.cfg")
@@ -178,16 +180,12 @@ async def lock_keys():
     including many combinations, user kill still works, alt+tab...
     it also serves as a quit program and skip download shortcut
     from: https://python-prompt-toolkit.readthedocs.io/en/master/pages/asking_for_input.html
-    Since this is decorated with a asynccontextmanager, it's guarded by async with
+    Since this is decorated with a asynccontextmanager, it's guarded with
     https://docs.python.org/3/reference/compound_stmts.html#async-with
 
-    since prompt_toolkit (3.0) input.attach attaches to a already running event asyncio event loop,
-    these key checks run essentially 'forever' in the same thread as the main one.
-
-    This is event loop is not cooperative (although it's thread safe, since it's a single thread)
-    so stale 'skip' (not ctrl-c or escape, since those exit right away) can be set to 'True' with a
-    logical check error of set while a nondownload iteration was running then check on a unrelated one.
-    So then you should reset skip on the 'checkescape' function at the start of every iteration
+    since prompt_toolkit (3.0) input.attach attaches to the running asyncio event loop
+    check asyncio.sleep(0) and reset the global variables here when appropriate to prevent
+    stale keys being used, probably on the same function checking for escape to exit
     """
     input = create_input()
 
@@ -290,7 +288,7 @@ def removeprefix(name: str, pre: str):
     return name
 
 
-# ----------------Used to check the existence of a sixtel compatible terminal image viewer-------------------------------
+# Used to check the existence of a sixtel compatible terminal image viewer
 def which(executable):
     flips = shutil.which(executable)
     if not flips:
@@ -300,9 +298,10 @@ def which(executable):
     return flips
 
 
-# -----------------------------------------------------------------------------------------------------------------------
-# The heart of the program, what orders titles to be 'more similar' or less to the local labels (after the normalization)
-# -----------------------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# The heart of the program, what orders titles to be 'more similar'
+# or less to the local labels (after the normalization)
+# -------------------------------------------------------------------
 class TitleScorer(object):
     def __init__(self):
         # rapidfuzz says to use range 0-100, but this doesn't (it's much easier that way)
@@ -337,9 +336,10 @@ class TitleScorer(object):
         return min(MAX_SCORE - 1, similarity + prefix)
 
 
-# -----------------------------------------------------------------------------------------------------------------------------
-# Normalization functions, part of the functions that change both local labels and remote names to be more similar to compare
-# -----------------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------
+# Normalization functions, part of the functions that change both
+# local labels and remote names to be more similar to compare
+# ---------------------------------------------------------------
 camelcase_pattern = regex.compile(r"(\p{Lu}[\p{Ll},'“”\"]+)")
 # number sequences in the middle (not start or end) of a string that start with 0
 zero_lead_pattern = regex.compile(r"([^\d])0+([1-9])")
@@ -402,7 +402,7 @@ def normalizer(t, nometa, hack):
     #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
     t = t.replace(" and ", " ")
     # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
-    # If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
+    # If both str tested have roman numerals no harm done if XXIV gets turned into 204.
     t = t.replace("xviii", "18")
     t = t.replace("xvii", "17")
     t = t.replace("xvi", "16")
@@ -423,9 +423,9 @@ def normalizer(t, nometa, hack):
     t = t.replace("ix", "9")
     t = t.replace("x", "10")
     t = t.replace("i", "1")
-    # remove diacritics (does nothing to asian languages diacritics, only for 2 to 1 character combinations)
+    # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
     t = "".join([c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c)])
-    # normalize spaces (don't remove them for other later score methods to be able to reorder tokens
+    # normalize spaces (don't remove them for other later score methods to be able to reorder tokens)
     return " ".join(t.split())
 
 
@@ -544,7 +544,12 @@ def error(error: str):
 
 
 def common_errors(cfg: Path, playlist: str, system: str, address: str):
-    """returns a tuple with (playlist_dir: Path, thumbnail_dir: Path, playlists: [Path], systems: [str])"""
+    """returns tuple (
+    nub_verbose: bool,    #hint to turn off emoji hyperlinks and images
+    thumbnail_dir: Path,  #RA thumbnail dir from the config file
+    playlists: [Path],    #sorted list of playlists in the playlist dir
+    systems: [str])       #sorted list of available systems on the thumbnail server
+    """
     global ADDRESS
     ADDRESS = address.rstrip("/")
     global viewer
@@ -945,7 +950,8 @@ async def downloader(
     if len(names) == 0:
         return
     thumbs = Thumbs._make(await downloadgamenames(client, system))
-    # before implies that the names of the playlists may be cut, so the hack and meta matching must be disabled
+    # before implies that the names of the playlists may be cut,
+    # so the hack and meta matching must be disabled
     if before:
         hack = False
         nometa = True
@@ -953,12 +959,14 @@ async def downloader(
     if nofail:
         score = 0
 
-    # build the function that will be called to print data, filling in some fixed arguments
+    # build the function that will be called to print data,
+    # filling in some fixed arguments
     strfy_runtime = partial(strfy, score, verbose, nub_verbose)
 
     # preprocess data so it's not redone every loop iteration.
     title_scorer = TitleScorer()
-    # normalize with or without subtitles, besides the remote_names this is used on the iterated local names later
+    # normalize with or without subtitles, besides the
+    # remote_names this is used on the iterated local names later
     norm = nosubtitle_normalizer if nosubtitle else normalizer
     # we choose the highest similarity of all 3 directories, since no mixed matches are allowed
     remote_names = set()
@@ -1002,7 +1010,7 @@ async def downloader(
         nameaux = norm(nameaux, nometa, hack)
 
         # operate on cache (to speed up by not applying normalization every iteration)
-        # the normalization can make it so that the winner has the same score as the runner up(s)
+        # normalization can make it so that the winner has the same score as the runner up(s)
         # so to make sure we catch at least two candidates for cases where that happens
         # it's a improvement because sometimes server thumbnail types have case letter typos
         result = process.extract(
@@ -1065,7 +1073,8 @@ async def downloader(
                             if not url:
                                 continue
 
-                            # with filters/reset you always download, and without only if it doesn't exist already.
+                            # with filters/reset you always download, and
+                            # without only if it doesn't exist already.
                             if filters or not real.exists():
                                 if await download(
                                     client,
