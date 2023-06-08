@@ -324,7 +324,16 @@ class TitleScorer(object):
         # for token_set_ratio. But still test this case, since it's common
         if s1 == s2 or "".join(s1.split()) == "".join(s2.split()):
             return MAX_SCORE
-        prefix = len(os.path.commonprefix([s1, s2]))
+
+        # since many games do not have images, they get caught up
+        # on a short title being completely contained in another
+        # token_set_ratio gives that 100. Add the length ratio
+        # which will give slight primacy to 'similar length' strings'
+        len_ratio = min(len(s1), len(s2)) / max(len(s1), len(s2))
+        # common prefix heuristic to give priority to longer similar names
+        # helps on cases where the first game in a series was winning over
+        hs_prefix = len(os.path.commonprefix([s1, s2]))
+
         # score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
         # 1. the caller of this, extract passes the 'current best score' as score_cutoff
         # 2. the token_set_ratio function returns 0 if the calculated score < score_cutoff
@@ -360,7 +369,7 @@ def normalizer(t, nometa, hack):
     t = regex.sub(zero_lead_pattern, r"\1\2", t)
     # CamelCaseNames for local labels are common when there are no spaces, split them
     # do this to normalize definite articles in normalization with spaces only (minimizes changes)
-    t = " ".join([s.strip() for s in regex.split(camelcase_pattern, t) if s])
+    t = " ".join([s.strip() for s in regex.split(camelcase_pattern, t) if s.strip()])
     # normalize case
     t = t.lower()
     # beginning and end definite articles in several european languages (people move them)
@@ -1022,7 +1031,6 @@ async def downloader(
         winners = [x for x in result if x[1] == max_score and x[1] >= score]
         show = result if verbose else winners
         name_format = style((nameaux if short_names else name) + ": ", bold=True)
-
         if winners:
             allow = True
             # these parent directories were created when reading the playlist
