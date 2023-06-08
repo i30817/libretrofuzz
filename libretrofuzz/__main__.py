@@ -393,7 +393,7 @@ def normalizer(t, nometa, hack):
     t = replacemany(t, ",'“”\"", "")
     # this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
     #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
-    t = t.replace(" and ", "")
+    t = t.replace(" and ", " ")
     # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
     # If both sides are roman numerals there is no harm done if XXIV gets turned into 204 in both sides.
     t = t.replace("xviii", "18")
