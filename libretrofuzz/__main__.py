@@ -651,7 +651,7 @@ def mainfuzzsingle(
         min=0,
         max=MAX_SCORE,
         metavar="SCORE",
-        help=f"0=any, 100=fuzzy match, {MAX_SCORE}=equal mininames,default. No-op with --no-fail.",
+        help=f"0=any, 100=fuzzy match, {MAX_SCORE}=equal,default. No-op with --no-fail.",
     ),
     nofail: bool = Option(False, "--no-fail", help="Download any score. Equivalent to --score 0."),
     noimage: bool = Option(False, "--no-image", help="Don't show images even with chafa installed."),
@@ -685,7 +685,7 @@ def mainfuzzsingle(
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
     verbose: Optional[int] = Option(
-        None, "--verbose", min=1, metavar="N", help="Show length N list: score, mininame, emoji hyperlinks."
+        None, "--verbose", min=1, metavar="N", help="Show length N list: score, name, emoji hyperlinks."
     ),
 ):
     if playlist and not playlist.lower().endswith(".lpl"):
@@ -798,7 +798,7 @@ def mainfuzzall(
         min=0,
         max=MAX_SCORE,
         metavar="SCORE",
-        help=f"0=any, 100=fuzzy match, {MAX_SCORE}=equal mininames,default. No-op with --no-fail.",
+        help=f"0=any, 100=fuzzy match, {MAX_SCORE}=equal,default. No-op with --no-fail.",
     ),
     nofail: bool = Option(False, "--no-fail", help="Download any score. Equivalent to --score 0."),
     noimage: bool = Option(False, "--no-image", help="Don't show images even with chafa installed."),
@@ -832,10 +832,10 @@ def mainfuzzall(
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
     verbose: Optional[int] = Option(
-        None, "--verbose", min=1, metavar="N", help="Show length N list: score, mininame, emoji hyperlinks."
+        None, "--verbose", min=1, metavar="N", help="Show length N list: score, name, emoji hyperlinks."
     ),
 ):
-    (nub_verbose, playlist_dir, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
+    (nub_verbose, _, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
     if nub_verbose:
         noimage = True
 
@@ -961,7 +961,9 @@ async def downloader(
 
     # build the function that will be called to print data,
     # filling in some fixed arguments
-    strfy_runtime = partial(strfy, score, verbose, nub_verbose)
+    short_names = os.getenv("SHORT")
+    short_names = True if short_names and short_names != "0" else False
+    strfy_runtime = partial(strfy, score, short_names, nub_verbose)
 
     # preprocess data so it's not redone every loop iteration.
     title_scorer = TitleScorer()
@@ -1019,7 +1021,7 @@ async def downloader(
         _, max_score, _ = (result and result[0]) or (None, -1, None)
         winners = [x for x in result if x[1] == max_score and x[1] >= score]
         show = result if verbose else winners
-        name_format = style((nameaux if verbose else name) + ": ", bold=True)
+        name_format = style((nameaux if short_names else name) + ": ", bold=True)
 
         if winners:
             allow = True
@@ -1140,7 +1142,7 @@ async def printwait(wait: Optional[float], waiting_format: str):
             await asyncio.sleep(0.1)
 
 
-def strfy(required_score, verbose, nub_verbose, r, urlsdict=None):
+def strfy(required_score, short_names, nub_verbose, r, urlsdict=None):
     thumb_norm, thumb_score, thumb_name = r
     score_color = RED if thumb_score < required_score else GREEN
     score_text = style(f"{int(thumb_score)}", fg=f"{score_color}", bold=True)
@@ -1154,7 +1156,7 @@ def strfy(required_score, verbose, nub_verbose, r, urlsdict=None):
         url1 = None
         url2 = None
         url3 = None
-    thumb_text = thumb_norm if verbose else thumb_name
+    thumb_text = thumb_norm if short_names else thumb_name
     linked1 = style(link(url1, "🎴")) if url1 else ""
     linked2 = style(link(url2, "🎬")) if url2 else ""
     linked3 = style(link(url3, "📸")) if url3 else ""

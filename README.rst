@@ -40,6 +40,8 @@ Example:
 
   The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, because of ``--filter``, the Ishar series in the WHDLoad playlist would redownload.
 
+To debug why a game is not being matched, SHORT=1 before the command will display the simplified names checked for similarity.
+
 libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   :CFG:                 Path to the retroarch cfg file. If not default, asked from the user.
 
@@ -58,7 +60,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --delay FLOAT         | Seconds to skip thumbnails download, enter continues.
                         | [1<=x<=30]
   --filter GLOB         Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, ``--filter '*'`` redownloads all.
-  --min SCORE           | 0=any, 100=fuzzy match, 200=equal mininames,default. No-op with ``--no-fail``.
+  --min SCORE           | 0=any, 100=fuzzy match, 200=equal,default. No-op with ``--no-fail``.
                         | [default: 200; 0<=x<=200]
   --no-fail             Download any score. Equivalent to ``--min 0``.
   --no-image            Don't show images even with chafa installed.
@@ -69,7 +71,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --before TEXT         Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.
   --address URL         | URL with libretro-thumbnails server. For local files, git clone/unzip packs, run ``'python3 -m http.server'`` in parent dir, and use ``--address 'http://localhost:8000'``.
                         | [default: https://thumbnails.libretro.com]
-  --verbose N           | Show length N list: score, mininame, emoji hyperlinks.
+  --verbose N           | Show length N list: score, name, emoji hyperlinks.
                         | [x>=1]
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or customize the installation.
