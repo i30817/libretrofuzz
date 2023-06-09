@@ -343,7 +343,9 @@ class TitleScorer(object):
 # Normalization functions, part of the functions that change both
 # local labels and remote names to be more similar to compare
 # ---------------------------------------------------------------
-camelcase_pattern = regex.compile(r"(\p{Lu}\p{Ll}+(?>(?:(?:'s)|(?:'em))?))")
+# split words boundaries in a digit + D (ie: 3D) or
+# letters followed by a bunch of lowercase letters or apostrophes
+camelcase_pattern = regex.compile(r"((?(?=\dD)(?:\dD)|(?:\p{Lu}+[\p{Ll}']+)))")
 # number sequences in the middle (not start or end) of a string that start with 0
 zero_lead_pattern = regex.compile(r"([^\d])0+([1-9])")
 
