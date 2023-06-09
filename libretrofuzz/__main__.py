@@ -343,7 +343,7 @@ class TitleScorer(object):
 # Normalization functions, part of the functions that change both
 # local labels and remote names to be more similar to compare
 # ---------------------------------------------------------------
-camelcase_pattern = regex.compile(r"(\p{Lu}(?:[\p{Ll}]|(!:\s)[,'“”\"])+)")
+camelcase_pattern = regex.compile(r"(\p{Lu}+[\p{Ll},'“”\"]+)")
 # number sequences in the middle (not start or end) of a string that start with 0
 zero_lead_pattern = regex.compile(r"([^\d])0+([1-9])")
 
@@ -1287,6 +1287,6 @@ def fuzzall():
 
 
 if __name__ == "__main__":
-    # print(globals()[sys.argv[1]](*sys.argv[2:]))
-    error("Please run libretro-fuzz or libretro-fuzzall instead of running the script directly")
-    raise Exit(code=1)
+    print(globals()[sys.argv[1]](*sys.argv[2:]))
+    # error("Please run libretro-fuzz or libretro-fuzzall instead of running the script directly")
+    # raise Exit(code=1)
