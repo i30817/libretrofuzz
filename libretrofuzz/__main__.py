@@ -315,11 +315,6 @@ class TitleScorer(object):
         }
 
     def __call__(self, s1, s2, processor=None, score_cutoff=None):
-        if (min(len(s1), len(s2)) / max(len(s1), len(s2))) < 0.2:
-            # ideally this branch wouldn't exist, but since many games do not have
-            # images, they get caught up on a short title being completely contained in another
-            # token_set_ratio gives that 100. Skip if the smaller name length is less than 20%
-            return 0
         # names are whitespace and case normalized, but they keep spaces
         # for token_set_ratio. But still test this case, since it's common
         if s1 == s2 or "".join(s1.split()) == "".join(s2.split()):
@@ -331,7 +326,8 @@ class TitleScorer(object):
         # which will give slight primacy to 'similar length' strings'
         len_ratio = min(len(s1), len(s2)) / max(len(s1), len(s2))
         # common prefix heuristic to give priority to longer similar names
-        # helps on cases where the first game in a series was winning over
+        # helps on cases where the first game in a series was winning sequels
+        # is counter productive in some cases where the series name comes first
         hs_prefix = len(os.path.commonprefix([s1, s2]))
 
         # score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
@@ -339,10 +335,8 @@ class TitleScorer(object):
         # 2. the token_set_ratio function returns 0 if the calculated score < score_cutoff
         # 3. 'current best score' includes the prefix, which this call can't include in 2.
         similarity = fuzz.token_set_ratio(s1, s2, processor=None, score_cutoff=0)
-        # Combine the scorer with a common prefix heuristic to give priority to longer similar
-        # names, this helps prevents false positives for shorter strings which token set ratio
-        # is prone because it sets score to 100 if one string words are completely on the other.
-        return min(MAX_SCORE - 1, similarity + prefix)
+        # print(similarity + len_ratio + hs_prefix)
+        return min(MAX_SCORE - 1, similarity + len_ratio + hs_prefix)
 
 
 # ---------------------------------------------------------------
@@ -1293,5 +1287,6 @@ def fuzzall():
 
 
 if __name__ == "__main__":
+    # print(globals()[sys.argv[1]](*sys.argv[2:]))
     error("Please run libretro-fuzz or libretro-fuzzall instead of running the script directly")
     raise Exit(code=1)
