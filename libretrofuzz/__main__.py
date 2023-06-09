@@ -343,7 +343,7 @@ class TitleScorer(object):
 # Normalization functions, part of the functions that change both
 # local labels and remote names to be more similar to compare
 # ---------------------------------------------------------------
-camelcase_pattern = regex.compile(r"(\p{Lu}+[\p{Ll},'“”\"]+)")
+camelcase_pattern = regex.compile(r"(\p{Lu}\p{Ll}+(?>(?:(?:'s)|(?:'em))?))")
 # number sequences in the middle (not start or end) of a string that start with 0
 zero_lead_pattern = regex.compile(r"([^\d])0+([1-9])")
 
@@ -363,6 +363,7 @@ def normalizer(t, nometa, hack):
     t = regex.sub(zero_lead_pattern, r"\1\2", t)
     # CamelCaseNames for local labels are common when there are no spaces, split them
     # do this to normalize definite articles in normalization with spaces only (minimizes changes)
+    # print(regex.split(camelcase_pattern, t))
     t = " ".join([s.strip() for s in regex.split(camelcase_pattern, t) if s and s.strip()])
     # normalize case
     t = t.lower()
