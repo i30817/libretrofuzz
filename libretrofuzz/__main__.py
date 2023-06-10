@@ -284,7 +284,7 @@ def which(executable):
 # or less to the local labels (after the normalization)
 # -------------------------------------------------------------------
 class TitleScorer(object):
-    def __init__(self):
+    def __init__(self, subtitles):
         # rapidfuzz says to use range 0-100, but this doesn't (it's much easier that way)
         # so it uses internal api to prevent a possible early exit at == 100
         self._RF_ScorerPy = {
@@ -294,25 +294,25 @@ class TitleScorer(object):
                 "flags": (1 << 6),
             }
         }
+        self.subtitles = subtitles
+
+    def check_full_match(self, name, other_name):
+        candidates = []
+        other_subs = self.subtitles[other_name]
+        for sub in other_subs:
+            if name == sub:
+                candidates.append(200 - len(other_subs) + 1)
+            else:
+                len_ratio = min(len(name), len(sub)) / max(len(name), len(sub))
+                heuristic = len(os.path.commonprefix([name, sub])) * len_ratio
+                candidates.append(fuzz.WRatio(name, sub) + heuristic)
+        len_ratio = min(len(name), len(other_name)) / max(len(name), len(other_name))
+        heuristic = len(os.path.commonprefix([name, other_name])) * len_ratio
+        candidates.append(fuzz.WRatio(name, other_name) + heuristic)
+        return max(candidates)
 
     def __call__(self, s1, s2, processor=None, score_cutoff=None):
-        # if a short title is completely contained in another
-        # token_set_ratio gives that 100. Add the length ratio
-        # which will give the rate of 'similar length'
-        len_ratio = min(len(s1), len(s2)) / max(len(s1), len(s2))
-
-        # add a heuristic to give primacy to larger start of string similarity
-        # multiplied by the length similarity, so at low length ratio
-        # you get less than at high.
-        heuristic = len(os.path.commonprefix([s1, s2])) * len_ratio
-
-        # score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
-        # 1. the caller of this, extract passes the 'current best score' as score_cutoff
-        # 2. the token_set_ratio function returns 0 if the calculated score < score_cutoff
-        # 3. 'current best score' includes the prefix, which this call can't include in 2.
-        similarity = fuzz.token_set_ratio(s1, s2, processor=None, score_cutoff=0)
-        # print(similarity + len_ratio + hs_prefix)
-        return min(MAX_SCORE - 1, similarity + heuristic)
+        return self.check_full_match(s1, s2)
 
 
 # ---------------------------------------------------------------
@@ -326,7 +326,7 @@ camelcase_pattern = regex.compile(
 # number sequences that start with 0
 zero_lead_pattern = regex.compile(r"([^\d])0+([1-9])")
 # all symbols except some used later
-almost_symbols_pattern = regex.compile(r"([\p{P}--',])")
+almost_symbols_pattern = regex.compile(r"([[:punct:]--',])")
 
 
 def normalizer(nometa, hack, t):
@@ -347,7 +347,6 @@ def normalizer(nometa, hack, t):
     subtitles = t.split(" - ")
     if len(subtitles) == 1:
         subtitles = t.split(": ")
-    new_t = []
     for i, st in enumerate(subtitles):
         # remove all symbols, except, ',' and '''
         # this needs to be here for all the names
@@ -421,27 +420,9 @@ def normalizer(nometa, hack, t):
         st = st.replace("i", "1")
         # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
         st = "".join([c for c in unicodedata.normalize("NFKD", st) if not unicodedata.combining(c)])
-        # remove spaces for the strings. but keep the index/main string with spaces
-        # rapidfuzz algorithms needs them to tokenize
-        st = st.strip().split()
-        new_t.append(" ".join(st))
-        subtitles[i] = "".join(st)
-    return " ".join(new_t), subtitles
-
-
-def check_full_match(name_subs, subtitlemap, namemap):
-    # A hack to take care of those that are either exactly equal
-    # or are exactly equal to one and only one subtitle
-    result = []
-    nameaux_nospaces = "".join(name_subs)
-    for key, ns_list in subtitlemap.items():
-        if "".join(ns_list) == nameaux_nospaces:
-            result.append((namemap[key], MAX_SCORE, key))
-        elif len(ns_list) > 1:
-            for sub in ns_list:
-                if sub == nameaux_nospaces:
-                    result.append((namemap[key], MAX_SCORE, key))
-    return result
+        st = " ".join(st.strip().split())
+        subtitles[i] = st
+    return " ".join(subtitles), subtitles
 
 
 # ---------------------------------------------------------------------------------
@@ -966,7 +947,6 @@ async def downloader(
     failure = 0
     success = 0
 
-    title_scorer = TitleScorer()
     # we choose the highest similarity of all 3 directories,
     # since no mixed matches are allowed
     # (until you call again without --no-merge anyway)
@@ -976,14 +956,15 @@ async def downloader(
     # exact matches (for total name or subtitle)
     # not involved in the fuzz function.
     # turn into a dict, original key and
-    # (normalized value, [normalized value nospaces,... possible subtitles nospace])
+    # (normalized value, [possible subtitles normalized nospace])
     subtitle = dict()
     mappings = dict()
     for x in remote_names:
         normstr, lst = norm(x)
-        subtitle[x] = lst
+        subtitle[normstr] = lst
         mappings[x] = normstr
     remote_names = mappings
+    title_scorer = TitleScorer(subtitle)
 
     for name, destination in names:
         await asyncio.sleep(0)  # update key status
@@ -1010,16 +991,14 @@ async def downloader(
         nameaux = regex.sub(forbidden, "_", nameaux)
 
         # unlike the server thumbnails, normalization wasn't done yet
-        (nameaux, nameaux_subs) = norm(nameaux)
-        # this checks if the name has a full match among
-        # the normalized names or the normalized subtitles
-        result = check_full_match(nameaux_subs, subtitle, remote_names)
-        if not result:
-            # operate on cache (to speed up by not applying normalization every iteration)
-            # normalization can make it so that the winner has the same score as the runner up(s)
-            # so to make sure we catch at least two candidates for cases where that happens
-            # it's a improvement because sometimes server thumbnail types have case letter typos
-            result = process.extract(nameaux, remote_names, scorer=title_scorer, limit=verbose or 2)
+        (nameaux, namesubs) = norm(nameaux)
+        if nameaux not in subtitle:
+            subtitle[nameaux] = namesubs
+
+        # normalization can make it so that the winner has the same score as the runner up(s)
+        # so to make sure we catch at least two candidates for cases where that happens
+        # it's a improvement because sometimes server thumbnail types have case letter typos
+        result = process.extract(nameaux, remote_names, scorer=title_scorer, limit=verbose or 2)
         _, max_score, _ = (result and result[0]) or (None, -1, None)
         winners = [x for x in result if x[1] == max_score and x[1] >= score]
         show = result if verbose else winners
