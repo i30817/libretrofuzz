@@ -256,22 +256,6 @@ spatterns = {" - ": regex.compile(r".*( - .*)"), ": ": regex.compile(r".*(: .*)"
 before_metadata = regex.compile(r"(^[^[({]*)")
 
 
-def nosubtitle_aux(t, subtitle_marker=" - "):
-    # last subtitle marker and everything there until the
-    # end, last because i noticed that 'subsubtitles' exist
-    # for instance, ultima 7 - part 1|2 - subtitle
-    try:
-        pattern = spatterns[subtitle_marker]
-    except:
-        pattern = regex.compile(rf".*({subtitle_marker}.*)")
-        spatterns[subtitle_marker] = pattern
-    name_without_meta = regex.search(before_metadata, t)
-    subtitle = regex.search(pattern, name_without_meta.group(1) if name_without_meta else t)
-    if subtitle:
-        t = t[0 : subtitle.start(1)] + " " + t[subtitle.end(1) :]
-    return t
-
-
 def replacemany(our_str, to_be_replaced, replace_with):
     for nextchar in to_be_replaced:
         our_str = our_str.replace(nextchar, replace_with)
@@ -315,20 +299,15 @@ class TitleScorer(object):
         }
 
     def __call__(self, s1, s2, processor=None, score_cutoff=None):
-        # names are whitespace and case normalized, but they keep spaces
-        # for token_set_ratio. But still test this case, since it's common
-        if s1 == s2 or "".join(s1.split()) == "".join(s2.split()):
-            return MAX_SCORE
-
-        # since many games do not have images, they get caught up
-        # on a short title being completely contained in another
+        # if a short title is completely contained in another
         # token_set_ratio gives that 100. Add the length ratio
-        # which will give slight primacy to 'similar length' strings'
+        # which will give the rate of 'similar length'
         len_ratio = min(len(s1), len(s2)) / max(len(s1), len(s2))
-        # common prefix heuristic to give priority to longer similar names
-        # helps on cases where the first game in a series was winning sequels
-        # is counter productive in some cases where the series name comes first
-        hs_prefix = len(os.path.commonprefix([s1, s2]))
+
+        # add a heuristic to give primacy to larger start of string similarity
+        # multiplied by the length similarity, so at low length ratio
+        # you get less than at high.
+        heuristic = len(os.path.commonprefix([s1, s2])) * len_ratio
 
         # score_cutoff needs to be 0 from a combination of 3 factors that create a bug:
         # 1. the caller of this, extract passes the 'current best score' as score_cutoff
@@ -336,107 +315,131 @@ class TitleScorer(object):
         # 3. 'current best score' includes the prefix, which this call can't include in 2.
         similarity = fuzz.token_set_ratio(s1, s2, processor=None, score_cutoff=0)
         # print(similarity + len_ratio + hs_prefix)
-        return min(MAX_SCORE - 1, similarity + len_ratio + hs_prefix)
+        return min(MAX_SCORE - 1, similarity + heuristic)
 
 
 # ---------------------------------------------------------------
 # Normalization functions, part of the functions that change both
 # local labels and remote names to be more similar to compare
 # ---------------------------------------------------------------
-# split words boundaries in a digit + D (ie: 3D) or
-# letters followed by a bunch of lowercase letters or apostrophes
-camelcase_pattern = regex.compile(r"((?(?=\dD)(?:\dD)|(?:\p{Lu}+[\p{Ll}']+)))")
-# number sequences in the middle (not start or end) of a string that start with 0
+# word splitter regex, wont even attempt to explain how and why
+camelcase_pattern = regex.compile(
+    r"((?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[0-9])(?=[A-Z][a-z])|(?<=[a-zA-Z])(?=[0-9]))"
+)
+# number sequences that start with 0
 zero_lead_pattern = regex.compile(r"([^\d])0+([1-9])")
+# all symbols
+all_symbols_pattern = regex.compile(r"(\p{P})")
 
 
-def normalizer(t, nometa, hack):
+def normalizer(nometa, hack, t):
     if nometa:
         t = removeparenthesis(t, "(", ")")
     if not hack:
         t = removeparenthesis(t, "[", "]")
-    # change all common ascci symbol characters we aren't going to use after this (, and ')
-    t = replacemany(t, '_()[]{}-.!?#"', "")
-    # strips just because the user may have made a mistake naming the source
-    # (or the replacement above introduce boundary spaces)
-    t = t.strip()
-    # remove any number leading 0, except at the end or the start of the string
-    # where it is likely a important part of the name, not a file manager sort workaround
+    # replace the default character representing illegal chars
+    # in the libretro database by space
+    t = t.replace("_", " ")
+    # remove any number of leading 0s that ends in a digit
     t = regex.sub(zero_lead_pattern, r"\1\2", t)
-    # CamelCaseNames for local labels are common when there are no spaces, split them
-    # do this to normalize definite articles in normalization with spaces only (minimizes changes)
-    # print(regex.split(camelcase_pattern, t))
-    t = " ".join([s.strip() for s in regex.split(camelcase_pattern, t) if s and s.strip()])
-    # normalize case
-    t = t.lower()
-    # beginning and end definite articles in several european languages (people move them)
-    # make sure we're only removing the start and end forms with spaces
-    t = removefirst(t, ", the")
-    t = removeprefix(t, "the ")
-    t = removefirst(t, ", los")
-    t = removeprefix(t, "los ")
-    t = removefirst(t, ", las")
-    t = removeprefix(t, "las ")
-    t = removefirst(t, ", les")
-    t = removeprefix(t, "les ")
-    t = removefirst(t, ", le")
-    t = removeprefix(t, "le ")
-    t = removefirst(t, ", la")
-    t = removeprefix(t, "la ")
-    t = removefirst(t, ", l'")
-    # L' sometimes ommits the space so always remove L' at the start even without space
-    t = removeprefix(t, "l'")  # if there is a extra space the next join will remove it
-    t = removefirst(t, ", der")
-    t = removeprefix(t, "der ")
-    t = removefirst(t, ", die")
-    t = removeprefix(t, "die ")
-    t = removefirst(t, ", das")
-    t = removeprefix(t, "das ")
-    t = removefirst(t, ", el")
-    t = removeprefix(t, "el ")
-    t = removefirst(t, ", os")
-    t = removeprefix(t, "os ")
-    t = removefirst(t, ", as")
-    t = removeprefix(t, "as ")
-    t = removefirst(t, ", o")
-    t = removeprefix(t, "o ")
-    t = removefirst(t, ", a")
-    t = removeprefix(t, "a ")
-    # remove the symbols used in the definite article normalization and word splitting
-    t = replacemany(t, ",'“”\"", "")
-    # this makes sure that if a remote name has ' and ' instead of ' _ ' to replace ' & ' it works
-    #': ' doesn't need this because ':' is a forbidden character and both '_' and '-' turn to ''
-    t = t.replace(" and ", " ")
-    # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
-    # If both str tested have roman numerals no harm done if XXIV gets turned into 204.
-    t = t.replace("xviii", "18")
-    t = t.replace("xvii", "17")
-    t = t.replace("xvi", "16")
-    t = t.replace("xiii", "13")
-    t = t.replace("xii", "12")
-    t = t.replace("xiv", "14")
-    t = t.replace("xv", "15")
-    t = t.replace("xix", "19")
-    t = t.replace("xx", "20")
-    t = t.replace("xi", "11")
-    t = t.replace("viii", "8")
-    t = t.replace("vii", "7")
-    t = t.replace("vi", "6")
-    t = t.replace("iii", "3")
-    t = t.replace("ii", "2")
-    t = t.replace("iv", "4")
-    t = t.replace("v", "5")
-    t = t.replace("ix", "9")
-    t = t.replace("x", "10")
-    t = t.replace("i", "1")
-    # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
-    t = "".join([c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c)])
-    # normalize spaces (don't remove them for other later score methods to be able to reorder tokens)
-    return " ".join(t.split())
+    # split subtitles. The second is forbidden in server names
+    # but may occur in the local name. Do this before camelcase
+    # split because its hard to do a regex that allows splitting
+    # Word-Word or Word:Word without creating new subtitle
+    subtitles = t.split(" - ")
+    if len(subtitles) == 1:
+        subtitles = t.split(": ")
+    new_t = []
+    for i, st in enumerate(subtitles):
+        # CamelCaseNames for local labels are common when there are no spaces
+        # do this to normalize definite articles
+        st = " ".join([a for s in regex.split(camelcase_pattern, st) if s and (a := s.strip())])
+        # normalize case
+        st = st.lower()
+        # beginning and end definite articles in several european languages (people move them)
+        # make sure we're only removing the start and end forms with spaces
+        st = removefirst(st, ", the")
+        st = removeprefix(st, "the ")
+        st = removefirst(st, ", los")
+        st = removeprefix(st, "los ")
+        st = removefirst(st, ", las")
+        st = removeprefix(st, "las ")
+        st = removefirst(st, ", les")
+        st = removeprefix(st, "les ")
+        st = removefirst(st, ", le")
+        st = removeprefix(st, "le ")
+        st = removefirst(st, ", la")
+        st = removeprefix(st, "la ")
+        st = removefirst(st, ", l'")
+        # L' sometimes ommits the space so always remove L' at the start even without space
+        st = removeprefix(st, "l'")  # if there is a extra space the next strip will remove it
+        st = removefirst(st, ", der")
+        st = removeprefix(st, "der ")
+        st = removefirst(st, ", die")
+        st = removeprefix(st, "die ")
+        st = removefirst(st, ", das")
+        st = removeprefix(st, "das ")
+        st = removefirst(st, ", el")
+        st = removeprefix(st, "el ")
+        st = removefirst(st, ", os")
+        st = removeprefix(st, "os ")
+        st = removefirst(st, ", as")
+        st = removeprefix(st, "as ")
+        st = removefirst(st, ", o")
+        st = removeprefix(st, "o ")
+        st = removefirst(st, ", a")
+        st = removeprefix(st, "a ")
+        # if a remote name has ' and ' instead of ' _ ' to replace ' & ' make it work
+        st = st.replace(" and ", " ")
+        # and why not
+        st = st.replace(" the ", " ")
+        # remove all symbols
+        st = regex.sub(all_symbols_pattern, "", st)
+        # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
+        # If both str tested have roman numerals no harm done if XXIV gets turned into 204.
+        st = st.replace("xviii", "18")
+        st = st.replace("xvii", "17")
+        st = st.replace("xvi", "16")
+        st = st.replace("xiii", "13")
+        st = st.replace("xii", "12")
+        st = st.replace("xiv", "14")
+        st = st.replace("xv", "15")
+        st = st.replace("xix", "19")
+        st = st.replace("xx", "20")
+        st = st.replace("xi", "11")
+        st = st.replace("viii", "8")
+        st = st.replace("vii", "7")
+        st = st.replace("vi", "6")
+        st = st.replace("iii", "3")
+        st = st.replace("ii", "2")
+        st = st.replace("iv", "4")
+        st = st.replace("v", "5")
+        st = st.replace("ix", "9")
+        st = st.replace("x", "10")
+        st = st.replace("i", "1")
+        # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
+        st = "".join([c for c in unicodedata.normalize("NFKD", st) if not unicodedata.combining(c)])
+        # remove spaces for the strings. but keep the index/main string with spaces
+        # rapidfuzz algorithms needs them to tokenize
+        st = st.strip().split()
+        new_t.append(" ".join(st))
+        subtitles[i] = "".join(st)
+    return " ".join(new_t), subtitles
 
 
-def nosubtitle_normalizer(t, nometa, hack):
-    return normalizer(nosubtitle_aux(t), nometa, hack)
+def check_full_match(name_subs, subtitlemap, namemap):
+    # A hack to take care of those that are either exactly equal
+    # or are exactly equal to one and only one subtitle
+    result = []
+    nameaux_nospaces = "".join(name_subs)
+    for key, ns_list in subtitlemap.items():
+        if "".join(ns_list) == nameaux_nospaces:
+            result.append((namemap[key], MAX_SCORE, key))
+        elif len(ns_list) > 1:
+            for sub in ns_list:
+                if sub == nameaux_nospaces:
+                    result.append((namemap[key], MAX_SCORE, key))
+    return result
 
 
 # ---------------------------------------------------------------------------------
@@ -666,11 +669,6 @@ def mainfuzzsingle(
         "--no-merge",
         help="Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with --filter.",
     ),
-    nosubtitle: bool = Option(
-        False,
-        "--no-subtitle",
-        help="Ignores text after last ' - ' or ': '. ':' can't occur in server names, so if the server has 'Name_ subtitle.png' and not 'Name - subtitle.png' (uncommon), this option doesn't help.",
-    ),
     nometa: bool = Option(
         False,
         "--no-meta",
@@ -754,7 +752,6 @@ def mainfuzzsingle(
                         nofail,
                         nometa,
                         hack,
-                        nosubtitle,
                         verbose,
                         nub_verbose,
                         before,
@@ -812,11 +809,6 @@ def mainfuzzall(
         False,
         "--no-merge",
         help="Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with --filter.",
-    ),
-    nosubtitle: bool = Option(
-        False,
-        "--no-subtitle",
-        help="Ignores text after last ' - ' or ': '. ':' can't occur in server names, so if the server has 'Name_ subtitle.png' and not 'Name - subtitle.png' (uncommon), this option doesn't help.",
     ),
     nometa: bool = Option(
         False,
@@ -879,7 +871,6 @@ def mainfuzzall(
                                 nofail,
                                 nometa,
                                 hack,
-                                nosubtitle,
                                 verbose,
                                 nub_verbose,
                                 before,
@@ -944,7 +935,6 @@ async def downloader(
     nofail: bool,
     nometa: bool,
     hack: bool,
-    nosubtitle: bool,
     verbose: Optional[int],
     nub_verbose: bool,
     before: Optional[str],
@@ -970,17 +960,29 @@ async def downloader(
     short_names = os.getenv("SHORT")
     short_names = True if short_names and short_names != "0" else False
     strfy_runtime = partial(strfy, score, short_names, nub_verbose)
+    norm = partial(normalizer, nometa, hack)
+    failure = 0
+    success = 0
 
-    # preprocess data so it's not redone every loop iteration.
     title_scorer = TitleScorer()
-    # normalize with or without subtitles, besides the
-    # remote_names this is used on the iterated local names later
-    norm = nosubtitle_normalizer if nosubtitle else normalizer
-    # we choose the highest similarity of all 3 directories, since no mixed matches are allowed
+    # we choose the highest similarity of all 3 directories,
+    # since no mixed matches are allowed
+    # (until you call again without --no-merge anyway)
     remote_names = set()
     remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
-    # turn into a set, original key and normalized value.
-    remote_names = {x: norm(x, nometa, hack) for x in remote_names}
+    # preprocess data for speed and to make
+    # exact matches (for total name or subtitle)
+    # not involved in the fuzz function.
+    # turn into a dict, original key and
+    # (normalized value, [normalized value nospaces,... possible subtitles nospace])
+    subtitle = dict()
+    mappings = dict()
+    for x in remote_names:
+        normstr, lst = norm(x)
+        subtitle[x] = lst
+        mappings[x] = normstr
+    remote_names = mappings
+
     for name, destination in names:
         await asyncio.sleep(0)  # update key status
         checkEscape()  # check key status
@@ -1001,29 +1003,22 @@ async def downloader(
                 if before_index != -1:
                     nameaux = nameaux[0:before_index]
 
-        # there is a second form of subtitles, which doesn't appear in the thumbnail server
-        # but can appear in linux game names. It uses the colon character, which is forbidden
-        # in windows. Note that this means that if the servername has 'Name_ subtitle.png',
-        # not 'Name - subtitle.png' it has little chance of a match, but that's rarer than opposite.
-        # not to mention that this only applies if the user signals 'no-subtitle',
-        # which presumably means they tried without it - which does match.
-        if nosubtitle:
-            nameaux = nosubtitle_aux(nameaux, ": ")
-
         # only the local names should have forbidden characters
+        # this is the character libretro server uses to replace
         name = regex.sub(forbidden, "_", name)
         nameaux = regex.sub(forbidden, "_", nameaux)
 
         # unlike the server thumbnails, normalization wasn't done yet
-        nameaux = norm(nameaux, nometa, hack)
-
-        # operate on cache (to speed up by not applying normalization every iteration)
-        # normalization can make it so that the winner has the same score as the runner up(s)
-        # so to make sure we catch at least two candidates for cases where that happens
-        # it's a improvement because sometimes server thumbnail types have case letter typos
-        result = process.extract(
-            nameaux, remote_names, scorer=title_scorer, processor=None, limit=verbose or 2, score_cutoff=None
-        )
+        (nameaux, nameaux_subs) = norm(nameaux)
+        # this checks if the name has a full match among
+        # the normalized names or the normalized subtitles
+        result = check_full_match(nameaux_subs, subtitle, remote_names)
+        if not result:
+            # operate on cache (to speed up by not applying normalization every iteration)
+            # normalization can make it so that the winner has the same score as the runner up(s)
+            # so to make sure we catch at least two candidates for cases where that happens
+            # it's a improvement because sometimes server thumbnail types have case letter typos
+            result = process.extract(nameaux, remote_names, scorer=title_scorer, limit=verbose or 2)
         _, max_score, _ = (result and result[0]) or (None, -1, None)
         winners = [x for x in result if x[1] == max_score and x[1] >= score]
         show = result if verbose else winners
@@ -1117,6 +1112,7 @@ async def downloader(
                         name_format = name_format + ", ".join((strfy_runtime(x, urls) for x in show))
                         success_format = f'{style("Success",   fg=GREEN, bold=True)}: {name_format}'
                         echo(success_format)
+                        success += 1
                 except StopProgram as e:
                     name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                     skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
@@ -1127,6 +1123,7 @@ async def downloader(
                     skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
                     echo(skipped_format)
         else:
+            failure += 1
             if verbose:
                 name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                 failure_format = f'{style("Failure",     fg=RED, bold=True)}: {name_format}'
@@ -1137,6 +1134,7 @@ async def downloader(
             if filters:
                 for dirname in Thumbs._fields:
                     Path(thumbnails_dir, destination, dirname, name + ".png").unlink(missing_ok=True)
+    echo(f"{success}/{len(names)} successes {failure}/{len(names)} failures")
 
 
 async def printwait(wait: Optional[float], waiting_format: str):
@@ -1150,7 +1148,8 @@ async def printwait(wait: Optional[float], waiting_format: str):
 def strfy(required_score, short_names, nub_verbose, r, urlsdict=None):
     thumb_norm, thumb_score, thumb_name = r
     score_color = RED if thumb_score < required_score else GREEN
-    score_text = style(f"{int(thumb_score)}", fg=f"{score_color}", bold=True)
+    # thumb_score = thumb_score if short_names else int(thumb_score)
+    score_text = style(f"{thumb_score}", fg=f"{score_color}", bold=True)
     if nub_verbose:
         return f"{score_text} {thumb_norm}"
     elif urlsdict:
@@ -1290,6 +1289,6 @@ def fuzzall():
 
 
 if __name__ == "__main__":
-    print(globals()[sys.argv[1]](*sys.argv[2:]))
-    # error("Please run libretro-fuzz or libretro-fuzzall instead of running the script directly")
-    # raise Exit(code=1)
+    # print(globals()[sys.argv[1]](*sys.argv[2:]))
+    error("Please run libretro-fuzz or libretro-fuzzall instead of running the script directly")
+    raise Exit(code=1)
