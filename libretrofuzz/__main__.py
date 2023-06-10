@@ -25,7 +25,6 @@ import json
 import os
 import sys
 import io
-import regex
 import zlib
 import fnmatch
 import collections
@@ -46,6 +45,9 @@ from tqdm import trange, tqdm
 from typer.colors import YELLOW, RED, BLUE, GREEN
 from typer import style, echo, run, Exit, Argument, Option
 from prompt_toolkit.input import create_input
+import regex
+
+regex.DEFAULT_VERSION = regex.VERSION1
 
 # stop showing the variables - a library installed this behind my back
 try:
@@ -236,24 +238,19 @@ def link(uri, label=None, parameters=""):
     return escape_mask.format(parameters, uri, label)
 
 
-ppatterns = {"()": regex.compile(r"\([^)(]*\)"), "[]": regex.compile(r"\[[^][]*\]")}
-
-
-def removeparenthesis(s, open_p="(", close_p=")"):
-    nb_rep = 1
-    key = open_p + close_p
-    try:
-        pattern = ppatterns[key]
-    except:
-        pattern = regex.compile(rf"\{open_p}[^{close_p}{open_p}]*\{close_p}")
-        ppatterns[key] = pattern
-    while nb_rep:
-        (s, nb_rep) = regex.subn(pattern, "", s)
-    return s
-
-
-spatterns = {" - ": regex.compile(r".*( - .*)"), ": ": regex.compile(r".*(: .*)")}
-before_metadata = regex.compile(r"(^[^[({]*)")
+def removeparenthesis(input_str, open_p="(", close_p=")"):
+    result = ""
+    paren_level = 0
+    for ch in input_str:
+        if ch == open_p:
+            paren_level += 1
+        elif (ch == close_p) and paren_level:
+            paren_level -= 1
+        elif not paren_level:
+            result += ch
+    if paren_level != 0:
+        error(f"'{input_str}' has a unclosed parenthesis")
+    return result
 
 
 def replacemany(our_str, to_be_replaced, replace_with):
@@ -328,8 +325,8 @@ camelcase_pattern = regex.compile(
 )
 # number sequences that start with 0
 zero_lead_pattern = regex.compile(r"([^\d])0+([1-9])")
-# all symbols
-all_symbols_pattern = regex.compile(r"(\p{P})")
+# all symbols except some used later
+almost_symbols_pattern = regex.compile(r"([\p{P}--',])")
 
 
 def normalizer(nometa, hack, t):
@@ -342,17 +339,22 @@ def normalizer(nometa, hack, t):
     t = t.replace("_", " ")
     # remove any number of leading 0s that ends in a digit
     t = regex.sub(zero_lead_pattern, r"\1\2", t)
-    # split subtitles. The second is forbidden in server names
+    # split subtitles. ': ' is forbidden in server names
     # but may occur in the local name. Do this before camelcase
     # split because its hard to do a regex that allows splitting
     # Word-Word or Word:Word without creating new subtitle
+    # and removing articles from subtitles is helpful anyway
     subtitles = t.split(" - ")
     if len(subtitles) == 1:
         subtitles = t.split(": ")
     new_t = []
     for i, st in enumerate(subtitles):
+        # remove all symbols, except, ',' and '''
+        # this needs to be here for all the names
+        # to be operating on the same base for definite articles
+        st = regex.sub(almost_symbols_pattern, "", st)
         # CamelCaseNames for local labels are common when there are no spaces
-        # do this to normalize definite articles
+        # do this to normalize for definite articles
         st = " ".join([a for s in regex.split(camelcase_pattern, st) if s and (a := s.strip())])
         # normalize case
         st = st.lower()
@@ -389,12 +391,12 @@ def normalizer(nometa, hack, t):
         st = removeprefix(st, "o ")
         st = removefirst(st, ", a")
         st = removeprefix(st, "a ")
+        # finally get rid of the rest
+        st = replacemany(st, ",'", "")
         # if a remote name has ' and ' instead of ' _ ' to replace ' & ' make it work
         st = st.replace(" and ", " ")
         # and why not
         st = st.replace(" the ", " ")
-        # remove all symbols
-        st = regex.sub(all_symbols_pattern, "", st)
         # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
         # If both str tested have roman numerals no harm done if XXIV gets turned into 204.
         st = st.replace("xviii", "18")
@@ -993,11 +995,10 @@ async def downloader(
         # to simplify this code, the forbidden characters are replaced twice, on the string
         # that is going to be the filename and the string copy that is going to be matched.
         nameaux = name
-
         #'before' has priority over subtitle removal
         if before:
             # Ignore metadata and get the string before it
-            name_without_meta = regex.search(before_metadata, nameaux)
+            name_without_meta = regex.search(r"(^[^\[({]*)", nameaux)
             if name_without_meta:
                 before_index = name_without_meta.group(1).find(before)
                 if before_index != -1:
