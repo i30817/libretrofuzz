@@ -54,12 +54,12 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --system <NAME libretro-fuzz only>
                         Directory name in the server to download thumbnails. If not provided, asked from the user.
   --delay-after FLOAT   | Seconds after download to skip replacing thumbnails, enter continues. No-op with ``--no-image``.
-                        | [1<=x<=30]
+                        | [1<=x<=60]
   --delay FLOAT         | Seconds to skip thumbnails download, enter continues.
-                        | [1<=x<=30]
+                        | [1<=x<=60]
   --filter GLOB         Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, ``--filter '*'`` redownloads all.
-  --min SCORE           | 0=any, 100=fuzzy match, 200=equal,default. No-op with ``--no-fail``.
-                        | [default: 200; 0<=x<=200]
+  --min SCORE           | 0=any, 100=fuzzy match,default 200=equal. No-op with ``--no-fail``.
+                        | [default: 100; 0<=x<=200]
   --no-fail             Download any score. Equivalent to ``--min 0``.
   --no-image            Don't show images even with chafa installed.
   --no-merge            Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with ``--filter``.

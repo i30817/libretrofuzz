@@ -63,9 +63,10 @@ except ImportError:
 ###########################################
 
 ADDRESS = "https://thumbnails.libretro.com"
+DEF_SCORE = 100
 MAX_SCORE = 200
 MAX_RETRIES = 3
-MAX_WAIT_SECS = 30
+MAX_WAIT_SECS = 60
 # 00-1f are ascii control codes, rest are illegal windows filename chars according to powershell + &
 forbidden = regex.compile(
     r"[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008"
@@ -658,12 +659,12 @@ def mainfuzzsingle(
         help="Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter '*' redownloads all.",
     ),
     score: int = Option(
-        MAX_SCORE,
+        DEF_SCORE,
         "--min",
         min=0,
         max=MAX_SCORE,
         metavar="SCORE",
-        help=f"0=any, 100=fuzzy match, {MAX_SCORE}=equal,default. No-op with --no-fail.",
+        help=f"0=any, {DEF_SCORE}=fuzzy match,default, {MAX_SCORE}=equal. No-op with --no-fail.",
     ),
     nofail: bool = Option(False, "--no-fail", help="Download any score. Equivalent to --score 0."),
     noimage: bool = Option(False, "--no-image", help="Don't show images even with chafa installed."),
@@ -799,12 +800,12 @@ def mainfuzzall(
         help="Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter '*' redownloads all.",
     ),
     score: int = Option(
-        MAX_SCORE,
+        DEF_SCORE,
         "--min",
         min=0,
         max=MAX_SCORE,
         metavar="SCORE",
-        help=f"0=any, 100=fuzzy match, {MAX_SCORE}=equal,default. No-op with --no-fail.",
+        help=f"0=any, {DEF_SCORE}=fuzzy match,default, {MAX_SCORE}=equal. No-op with --no-fail.",
     ),
     nofail: bool = Option(False, "--no-fail", help="Download any score. Equivalent to --score 0."),
     noimage: bool = Option(False, "--no-image", help="Don't show images even with chafa installed."),
