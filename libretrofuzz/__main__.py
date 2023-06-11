@@ -763,7 +763,7 @@ def mainfuzzsingle(
                         client,
                     )
         except StopPlaylist:
-            error(f"Cloudflare is down for {system}")
+            error(f"Unexpected error accessing server directory {system}")
             raise Exit(code=1)
         except StopProgram:
             error("Cancelled by user, exiting")
@@ -882,7 +882,7 @@ def mainfuzzall(
                                 client,
                             )
                         except StopPlaylist:
-                            error(f"Cloudflare is down for {system}")
+                            error(f"Unexpected error accessing server directory {system}")
         except StopProgram:
             error("Cancelled by user, exiting")
             raise Exit()
@@ -948,7 +948,6 @@ async def downloader(
     # not a error to pass a empty playlist
     if len(names) == 0:
         return
-    thumbs = Thumbs._make(await downloadgamenames(client, system))
     # before implies that the names of the playlists may be cut,
     # so the hack and meta matching must be disabled
     if before:
@@ -967,11 +966,15 @@ async def downloader(
     failure = 0
     success = 0
 
+    thumbs = Thumbs._make(await downloadgamenames(client, system))
     # we choose the highest similarity of all 3 directories,
     # since no mixed matches are allowed
-    # (until you call again without --no-merge anyway)
+    # (until you call again without --no-merge anyway
+    # or if they have the same score)
     remote_names = set()
     remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
+    if not remote_names:
+        raise StopPlaylist()
 
     # preprocess data to build a heuristic later. Do not move
     # into the later loop because thats when the heuristic is used
@@ -1009,7 +1012,7 @@ async def downloader(
         # so try in several versions (to prevent this use '--verbose 1')
         # improves results because spaces or case errors happen in the server
         result = process.extract(nameaux, remote_names, scorer=scorer, limit=verbose or 2)
-        assert result and len(result) > 0
+        assert result
         _, max_score, _ = result[0]
         winners = [x for x in result if x[1] == max_score and x[1] >= score]
         show = result if verbose else winners
