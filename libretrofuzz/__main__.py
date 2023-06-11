@@ -253,6 +253,17 @@ def removeparenthesis(input_str, open_p="(", close_p=")"):
     return result
 
 
+def extractbefore(name, before):
+    if before:
+        # Ignore metadata and get the string before it
+        name_without_meta = regex.search(r"(^[^\[({]*)", name)
+        if name_without_meta:
+            before_index = name_without_meta.group(1).find(before)
+            if before_index != -1:
+                return name[0:before_index]
+    return name
+
+
 def replacemany(our_str, to_be_replaced, replace_with):
     for nextchar in to_be_replaced:
         our_str = our_str.replace(nextchar, replace_with)
@@ -284,7 +295,7 @@ def which(executable):
 # or less to the local labels (after the normalization)
 # -------------------------------------------------------------------
 class TitleScorer(object):
-    def __init__(self, subtitles, other_subtitles):
+    def __init__(self, normcache, normcache2):
         # rapidfuzz says to use range 0-100, but this doesn't (it's much easier that way)
         # so it uses internal api to prevent a possible early exit at == 100
         self._RF_ScorerPy = {
@@ -294,32 +305,32 @@ class TitleScorer(object):
                 "flags": (1 << 6),
             }
         }
-        self.subtitles = subtitles
-        self.other_subtitles = other_subtitles
+        self.normcache = normcache
+        self.normcache2 = normcache2
 
-    def check_full_match(self, name, other_name):
-        if name == other_name:
+    def __call__(self, name, other, processor=None, score_cutoff=None):
+        if name == other:
             return 200
-        name_ns = "".join(name.split())
-        if name_ns == "".join(other_name.split()):
+        (_, name_ns, _, _) = self.normcache[name]
+        (_, other_ns, other_subs, other_ns_subs) = self.normcache2[other]
+        if name_ns == other_ns:
             return 200
-        candidates = []
-        other_subs = self.other_subtitles[other_name]
         # If a playlist has 'other name' that means 'other name' is
         # a perfect match to another game on the playlist.
-        # that probably means it's not the right game
-        perfect_for_another = 0.1 if other_name in self.subtitles else 0
-        if len(other_subs) > 1:
-            for sub in other_subs:
-                if name == sub or name_ns == "".join(sub.split()):
-                    candidates.append(200 - perfect_for_another)
-                else:
-                    candidates.append(fuzz.token_ratio(name, sub) - perfect_for_another)
-        candidates.append(fuzz.token_ratio(name, other_name) - perfect_for_another)
+        # That probably means it's not the right game.
+        if other in self.normcache or other_ns in self.normcache:
+            perfect_for_another = 0.1
+        else:
+            perfect_for_another = 0
+        candidates = []
+        for sub, sub2 in zip(other_subs, other_ns_subs):
+            if name == sub or name_ns == sub2:
+                candidates.append(200 - perfect_for_another)
+                break
+            else:
+                candidates.append(fuzz.token_ratio(name, sub) - perfect_for_another)
+        candidates.append(fuzz.token_ratio(name, other) - perfect_for_another)
         return max(candidates)
-
-    def __call__(self, s1, s2, processor=None, score_cutoff=None):
-        return self.check_full_match(s1, s2)
 
 
 # ---------------------------------------------------------------
@@ -354,6 +365,7 @@ def normalizer(nometa, hack, t):
     subtitles = t.split(" - ")
     if len(subtitles) == 1:
         subtitles = t.split(": ")
+    subtitles2 = [None] * len(subtitles)
     for i, st in enumerate(subtitles):
         # remove all symbols, except, ',' and '''
         # this needs to be here for all the names
@@ -429,7 +441,8 @@ def normalizer(nometa, hack, t):
         st = "".join([c for c in unicodedata.normalize("NFKD", st) if not unicodedata.combining(c)])
         st = st.strip().split()
         subtitles[i] = " ".join(st)
-    return " ".join(subtitles), subtitles
+        subtitles2[i] = "".join(st)
+    return " ".join(subtitles), "".join(subtitles2), subtitles, subtitles2
 
 
 # ---------------------------------------------------------------------------------
@@ -962,49 +975,48 @@ async def downloader(
 
     # preprocess data to build a heuristic later. Do not move
     # into the later loop because thats when the heuristic is used
-    subtitles1 = dict()
-    subtitles2 = dict()
-    mappings1 = dict()
-    mappings2 = dict()
-    for x in remote_names:
-        normstr, lst = norm(x)
-        subtitles2[normstr] = lst
-        mappings1[x] = normstr
-    remote_names = mappings1
-    # this loop is used to build a heuristic explained in titlescorer (dont merge it)
+    normcache = dict()
+    # nonetheless save the normalization to not be forced to redo it
     for name, _ in names:
-        name = regex.sub(forbidden, "_", name)
-        norm_name = name
-        if before:
-            # Ignore metadata and get the string before it
-            name_without_meta = regex.search(r"(^[^\[({]*)", norm_name)
-            if name_without_meta:
-                before_index = name_without_meta.group(1).find(before)
-                if before_index != -1:
-                    norm_name = norm_name[0:before_index]
-
-        (norm_name, namesubs) = norm(norm_name)
-        subtitles1[norm_name] = namesubs
-        mappings2[name] = norm_name
-
-    title_scorer = TitleScorer(subtitles1, subtitles2)
-
+        # done before the forbidden removal because the 'before' str might have '_'
+        norm_name = extractbefore(name, before)
+        # this is the character that libretro-thumbnails uses as placeholder
+        norm_name = regex.sub(forbidden, "_", norm_name)
+        normtuple = norm(norm_name)
+        # cache normalization with all the name variants checked
+        # reason is to be able to reuse the calculation (name)
+        normcache[name] = normtuple  # original
+        # check if server names are equal to playlist normalized variants
+        normcache[normtuple[0]] = normtuple  # normalized
+        normcache[normtuple[1]] = normtuple  # normalized nospace
+    tmpdict = dict()
+    normcache2 = dict()
+    for x in remote_names:
+        normtuple = norm(x)
+        normcache2[normtuple[0]] = normtuple  # normalized only
+        tmpdict[x] = normtuple[0]
+    remote_names = tmpdict
+    scorer = TitleScorer(normcache, normcache2)
     for name, destination in names:
         await asyncio.sleep(0)  # update key status
         checkEscape()  # check key status
         # if the user used filters, filter everything that doesn't match any of the globs
         if filters and not any(map(lambda x: fnmatch.fnmatch(name, x), filters)):
             continue
-        # only the local names should have forbidden characters
-        name = regex.sub(forbidden, "_", name)
-        nameaux = mappings2[name]
+        # cached normalized name
+        nameaux = normcache[name][0]
         # normalization can make it so that the winner has the same score as the runner up(s)
-        result = process.extract(nameaux, remote_names, scorer=title_scorer, limit=verbose or 2)
+        # so try in several versions (to prevent this use '--verbose 1')
+        # improves results because spaces or case errors happen in the server
+        result = process.extract(nameaux, remote_names, scorer=scorer, limit=verbose or 2)
         assert result and len(result) > 0
         _, max_score, _ = result[0]
         winners = [x for x in result if x[1] == max_score and x[1] >= score]
         show = result if verbose else winners
         name_format = style((nameaux if short_names else name) + ": ", bold=True)
+        # still remove the forbidden characters
+        # the name will be used in the filename
+        name = regex.sub(forbidden, "_", name)
         if winners:
             allow = True
             # these parent directories were created when reading the playlist
@@ -1051,7 +1063,7 @@ async def downloader(
                         temp = Path(down_thumb_dir, dirname, name + ".png")
                         downloaded_dict[dirname] = (real, temp)
                         for winner in winners:
-                            t_norm, t_score, t_name = winner
+                            _, t_score, t_name = winner
                             # something to download
                             url = getattr(thumbs, dirname).get(t_name, None)
                             if not url:
@@ -1130,7 +1142,7 @@ async def printwait(wait: Optional[float], waiting_format: str):
 def strfy(required_score, short_names, nub_verbose, r, urlsdict=None):
     thumb_norm, thumb_score, thumb_name = r
     score_color = RED if thumb_score < required_score else GREEN
-    thumb_magnt = f"{thumb_score:.6f}" if short_names else f"{thumb_score:.2f}"
+    thumb_magnt = f"{thumb_score:.4f}" if short_names else f"{thumb_score:.1f}"
     score_text = style(thumb_magnt, fg=score_color, bold=True)
     if nub_verbose:
         return f"{score_text} {thumb_norm}"
