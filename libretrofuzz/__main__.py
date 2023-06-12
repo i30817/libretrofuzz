@@ -35,6 +35,7 @@ import subprocess
 import configparser
 import platform
 
+
 # external libraries
 from PIL import Image, ImageOps
 from rapidfuzz import process, fuzz
@@ -63,7 +64,7 @@ except ImportError:
 ###########################################
 
 ADDRESS = "https://thumbnails.libretro.com"
-DEF_SCORE = 100
+DEF_SCORE = 90
 MAX_SCORE = 100
 MAX_RETRIES = 3
 MAX_WAIT_SECS = 60
@@ -239,6 +240,14 @@ def link(uri, label=None, parameters=""):
     return escape_mask.format(parameters, uri, label)
 
 
+def extdigits(input_str):
+    result = ""
+    for ch in input_str:
+        if ch.isdigit():
+            result += ch
+    return result
+
+
 def removeparenthesis(input_str, open_p="(", close_p=")"):
     result = ""
     paren_level = 0
@@ -281,6 +290,11 @@ def removeprefix(name: str, pre: str):
     return name
 
 
+def replaceRoman(source, romana, number):
+    source = regex.sub(rf"([\s']){romana}([\s,]|$)", rf"\g<1>{number}\g<2>", source)
+    return source
+
+
 # Used to check the existence of a sixtel compatible terminal image viewer
 def which(executable):
     flips = shutil.which(executable)
@@ -296,33 +310,49 @@ def which(executable):
 # or less to the local labels (after the normalization)
 # -------------------------------------------------------------------
 class TitleScorer(object):
-    def __init__(self, normcache, normcache2):
+    def __init__(self, normcache, normcache2, hack):
         self.normcache = normcache
         self.normcache2 = normcache2
+        self.hack = hack
 
     def __call__(self, name, other, processor=None, score_cutoff=None):
         if name == other:
-            return 100
-        (_, name_ns, _, _) = self.normcache[name]
-        (_, other_ns, other_subs, other_ns_subs) = self.normcache2[other]
+            return MAX_SCORE
+        (_, name_ns, _, _, digits) = self.normcache[name]
+        (_, other_ns, other_subs, other_ns_subs, other_digits) = self.normcache2[other]
         if name_ns == other_ns:
-            return 100
-        # If a playlist has 'other name' that means 'other name' is
-        # a perfect match to another game on the playlist.
-        # That probably means it's not the right game.
-        if other in self.normcache or other_ns in self.normcache:
-            perfect_for_another = 0.1
-        else:
-            perfect_for_another = 0
-        candidates = []
-        for sub, sub2 in zip(other_subs, other_ns_subs):
-            if name == sub or name_ns == sub2:
-                candidates.append(100 - perfect_for_another)
-                break
-            else:
-                candidates.append(fuzz.token_ratio(name, sub) - perfect_for_another)
-        candidates.append(fuzz.token_ratio(name, other) - perfect_for_another)
-        return max(candidates)
+            return MAX_SCORE
+
+        remaining = MAX_SCORE - DEF_SCORE
+
+        cnbrs = fuzz.ratio(digits, other_digits)  # normalized to 0-100
+        # 2 heuristics (this time), however they don't both have the same weight
+        increment_common_number = remaining * 0.03
+        increment_common_length = remaining * 0.97
+
+        rest_of_score = increment_common_number * 0.01 * cnbrs  # 100 gives 1
+        common_prop = len(os.path.commonprefix([name_ns, other_ns])) / len(name_ns)
+        rest_of_score += increment_common_length * common_prop
+        sum_ns = ""
+        for sub, sub_ns in zip(other_subs, other_ns_subs):
+            # if you find a exact match on either a subtitle
+            # or a sequence of subtitles from the start, give
+            # a 'winning' score but distingish them by the rest
+            # by name ratio and digits ratio
+            if name_ns == (sum_ns := sum_ns + sub_ns) or name_ns == sub_ns:
+                # reset increment and rest of score
+                rest_of_score = increment_common_number * 0.01 * cnbrs
+                rest_of_score += increment_common_length * 0.01 * fuzz.WRatio(name, other)
+                return DEF_SCORE + rest_of_score
+
+        # give a penality if you got here and the name you're checking against
+        # already has a perfect match in the playlist being processed. This usually
+        # penalizes hack names but removes a lot of inane false positives
+        # (depending on the playlist completeness). Disable it when processing hacks
+        # TODO remove this when a feature to choose when waiting happens
+        if not self.hack and other_ns in self.normcache:
+            rest_of_score -= remaining * 0.65
+        return fuzz.WRatio(name, other) * (DEF_SCORE / 100) + rest_of_score
 
 
 # ---------------------------------------------------------------
@@ -344,11 +374,12 @@ def normalizer(nometa, hack, t):
         t = removeparenthesis(t, "(", ")")
     if not hack:
         t = removeparenthesis(t, "[", "]")
+
     # replace the default character representing illegal chars
     # in the libretro database by space
     t = t.replace("_", " ")
     # remove any number of leading 0s that ends in a digit
-    t = regex.sub(zero_lead_pattern, r"\1\2", t)
+    t = regex.sub(zero_lead_pattern, r"\g<1>\g<2>", t)
     # split subtitles. ': ' is forbidden in server names
     # but may occur in the local name. Do this before camelcase
     # split because its hard to do a regex that allows splitting
@@ -366,6 +397,30 @@ def normalizer(nometa, hack, t):
         # CamelCaseNames for local labels are common when there are no spaces
         # do this to normalize for definite articles
         st = " ".join([a for s in regex.split(camelcase_pattern, st) if s and (a := s.strip())])
+        # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
+        # If both str tested have roman numerals little harm done if XXIV gets turned into 204.
+        st = replaceRoman(st, "XVIII", "18")
+        st = replaceRoman(st, "XVII", "17")
+        st = replaceRoman(st, "XVI", "16")
+        st = replaceRoman(st, "XIII", "13")
+        st = replaceRoman(st, "XII", "12")
+        st = replaceRoman(st, "XIV", "14")
+        st = replaceRoman(st, "XV", "15")
+        st = replaceRoman(st, "XIX", "19")
+        st = replaceRoman(st, "XX", "20")
+        st = replaceRoman(st, "XI", "11")
+        st = replaceRoman(st, "VIII", "8")
+        st = replaceRoman(st, "VII", "7")
+        st = replaceRoman(st, "VI", "6")
+        st = replaceRoman(st, "III", "3")
+        st = replaceRoman(st, "II", "2")
+        st = replaceRoman(st, "IV", "4")
+        st = replaceRoman(st, "V", "5")
+        st = replaceRoman(st, "IX", "9")
+        st = replaceRoman(st, "X", "10")
+        st = replaceRoman(st, "I", "1")
+        # such a common variant i zoom in on it
+        st = st.replace("Center", "Centre")
         # normalize case
         st = st.lower()
         # beginning and end definite articles in several european languages (people move them)
@@ -407,34 +462,14 @@ def normalizer(nometa, hack, t):
         st = st.replace(" and ", " ")
         # and why not
         st = st.replace(" the ", " ")
-        # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
-        # If both str tested have roman numerals no harm done if XXIV gets turned into 204.
-        st = st.replace("xviii", "18")
-        st = st.replace("xvii", "17")
-        st = st.replace("xvi", "16")
-        st = st.replace("xiii", "13")
-        st = st.replace("xii", "12")
-        st = st.replace("xiv", "14")
-        st = st.replace("xv", "15")
-        st = st.replace("xix", "19")
-        st = st.replace("xx", "20")
-        st = st.replace("xi", "11")
-        st = st.replace("viii", "8")
-        st = st.replace("vii", "7")
-        st = st.replace("vi", "6")
-        st = st.replace("iii", "3")
-        st = st.replace("ii", "2")
-        st = st.replace("iv", "4")
-        st = st.replace("v", "5")
-        st = st.replace("ix", "9")
-        st = st.replace("x", "10")
-        st = st.replace("i", "1")
         # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
         st = "".join([c for c in unicodedata.normalize("NFKD", st) if not unicodedata.combining(c)])
         st = st.strip().split()
         subtitles[i] = " ".join(st)
         subtitles2[i] = "".join(st)
-    return " ".join(subtitles), "".join(subtitles2), subtitles, subtitles2
+    nspaces = "".join(subtitles2)
+    ext_digits = extdigits(nspaces)
+    return " ".join(subtitles), nspaces, subtitles, subtitles2, ext_digits
 
 
 # ---------------------------------------------------------------------------------
@@ -655,7 +690,7 @@ def mainfuzzsingle(
         min=0,
         max=MAX_SCORE,
         metavar="SCORE",
-        help=f"0=any, {DEF_SCORE}≃equal, default. No-op with --no-fail.",
+        help=f"0=any, {MAX_SCORE}≃equal, {DEF_SCORE}=default. No-op with --no-fail.",
     ),
     nofail: bool = Option(False, "--no-fail", help="Download any score. Equivalent to --score 0."),
     noimage: bool = Option(False, "--no-image", help="Don't show images even with chafa installed."),
@@ -796,7 +831,7 @@ def mainfuzzall(
         min=0,
         max=MAX_SCORE,
         metavar="SCORE",
-        help=f"0=any, {DEF_SCORE}≃equal, default. No-op with --no-fail.",
+        help=f"0=any, {MAX_SCORE}≃equal, {DEF_SCORE}=default. No-op with --no-fail.",
     ),
     nofail: bool = Option(False, "--no-fail", help="Download any score. Equivalent to --score 0."),
     noimage: bool = Option(False, "--no-image", help="Don't show images even with chafa installed."),
@@ -991,7 +1026,7 @@ async def downloader(
         normcache2[normtuple[0]] = normtuple  # normalized only
         tmpdict[x] = normtuple[0]
     remote_names = tmpdict
-    scorer = TitleScorer(normcache, normcache2)
+    scorer = TitleScorer(normcache, normcache2, hack)
     for name, destination in names:
         await asyncio.sleep(0)  # update key status
         checkEscape()  # check key status
