@@ -1156,6 +1156,9 @@ def strfy(required_score, short_names, nub_verbose, r, urlsdict=None):
     return f"{score_text} {thumb_text}{linked1}{linked2}{linked3}"
 
 
+no_download = os.getenv("NODOWNLOAD")
+
+
 async def download(
     client, url, destination, getting_format, waiting_format, first_wait, wait_before, max_retries
 ):
@@ -1175,16 +1178,22 @@ async def download(
                 length = int(r.headers["Content-Length"])
                 if length < 100:  # obviously corrupt 'thumbnail', skip this thumb
                     return False
-                with open(destination, "w+b") as f:
-                    if first_wait:
-                        await printwait(wait_before, waiting_format)
-                    with tqdm.wrapattr(
-                        f, "write", total=length, dynamic_ncols=True, bar_format=getting_format, leave=False
-                    ) as w:
-                        async for chunk in r.aiter_raw(4096):
-                            with handleContinueDownload():
-                                checkDownload()
-                            w.write(chunk)
+                if not no_download:  # test
+                    with open(destination, "w+b") as f:
+                        if first_wait:
+                            await printwait(wait_before, waiting_format)
+                        with tqdm.wrapattr(
+                            f,
+                            "write",
+                            total=length,
+                            dynamic_ncols=True,
+                            bar_format=getting_format,
+                            leave=False,
+                        ) as w:
+                            async for chunk in r.aiter_raw(4096):
+                                with handleContinueDownload():
+                                    checkDownload()
+                                w.write(chunk)
             return True
         except (RequestError, HTTPStatusError):
             if max_retries <= 0:
