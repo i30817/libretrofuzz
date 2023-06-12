@@ -64,7 +64,7 @@ except ImportError:
 
 ADDRESS = "https://thumbnails.libretro.com"
 DEF_SCORE = 100
-MAX_SCORE = 200
+MAX_SCORE = 100
 MAX_RETRIES = 3
 MAX_WAIT_SECS = 60
 # 00-1f are ascii control codes, rest are illegal windows filename chars according to powershell + &
@@ -297,25 +297,16 @@ def which(executable):
 # -------------------------------------------------------------------
 class TitleScorer(object):
     def __init__(self, normcache, normcache2):
-        # rapidfuzz says to use range 0-100, but this doesn't (it's much easier that way)
-        # so it uses internal api to prevent a possible early exit at == 100
-        self._RF_ScorerPy = {
-            "get_scorer_flags": lambda **kwargs: {
-                "optimal_score": MAX_SCORE,
-                "worst_score": 0,
-                "flags": (1 << 6),
-            }
-        }
         self.normcache = normcache
         self.normcache2 = normcache2
 
     def __call__(self, name, other, processor=None, score_cutoff=None):
         if name == other:
-            return 200
+            return 100
         (_, name_ns, _, _) = self.normcache[name]
         (_, other_ns, other_subs, other_ns_subs) = self.normcache2[other]
         if name_ns == other_ns:
-            return 200
+            return 100
         # If a playlist has 'other name' that means 'other name' is
         # a perfect match to another game on the playlist.
         # That probably means it's not the right game.
@@ -326,7 +317,7 @@ class TitleScorer(object):
         candidates = []
         for sub, sub2 in zip(other_subs, other_ns_subs):
             if name == sub or name_ns == sub2:
-                candidates.append(200 - perfect_for_another)
+                candidates.append(100 - perfect_for_another)
                 break
             else:
                 candidates.append(fuzz.token_ratio(name, sub) - perfect_for_another)
@@ -664,7 +655,7 @@ def mainfuzzsingle(
         min=0,
         max=MAX_SCORE,
         metavar="SCORE",
-        help=f"0=any, {DEF_SCORE}=fuzzy match,default, {MAX_SCORE}=equal. No-op with --no-fail.",
+        help=f"0=any, {DEF_SCORE}≃equal, default. No-op with --no-fail.",
     ),
     nofail: bool = Option(False, "--no-fail", help="Download any score. Equivalent to --score 0."),
     noimage: bool = Option(False, "--no-image", help="Don't show images even with chafa installed."),
@@ -805,7 +796,7 @@ def mainfuzzall(
         min=0,
         max=MAX_SCORE,
         metavar="SCORE",
-        help=f"0=any, {DEF_SCORE}=fuzzy match,default, {MAX_SCORE}=equal. No-op with --no-fail.",
+        help=f"0=any, {DEF_SCORE}≃equal, default. No-op with --no-fail.",
     ),
     nofail: bool = Option(False, "--no-fail", help="Download any score. Equivalent to --score 0."),
     noimage: bool = Option(False, "--no-image", help="Don't show images even with chafa installed."),
