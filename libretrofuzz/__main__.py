@@ -718,6 +718,7 @@ def mainfuzzsingle(
         metavar="URL",
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
+    dryrun: bool = Option(False, "--dry-run", help="Print results only, no image download."),
     verbose: Optional[int] = Option(
         None, "--verbose", min=1, metavar="N", help="Show length N list: score, name, emoji hyperlinks."
     ),
@@ -728,8 +729,6 @@ def mainfuzzsingle(
     (nub_verbose, playlist_dir, thumbnails_dir, playlists, systems) = common_errors(
         cfg, playlist, system, address
     )
-    if nub_verbose:
-        noimage = True
 
     custom_style = Style([("answer", "fg:green bold")])
 
@@ -776,6 +775,7 @@ def mainfuzzsingle(
                         wait_before,
                         wait_after,
                         filters,
+                        dryrun,
                         score,
                         noimage,
                         nomerge,
@@ -859,13 +859,12 @@ def mainfuzzall(
         metavar="URL",
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
+    dryrun: bool = Option(False, "--dry-run", help="Print results only, no image download."),
     verbose: Optional[int] = Option(
         None, "--verbose", min=1, metavar="N", help="Show length N list: score, name, emoji hyperlinks."
     ),
 ):
     (nub_verbose, _, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
-    if nub_verbose:
-        noimage = True
 
     notInSystems = [
         (playlist, os.path.basename(playlist)[:-4])
@@ -895,6 +894,7 @@ def mainfuzzall(
                                 wait_before,
                                 wait_after,
                                 filters,
+                                dryrun,
                                 score,
                                 noimage,
                                 nomerge,
@@ -959,6 +959,7 @@ async def downloader(
     wait_before: Optional[float],
     wait_after: Optional[float],
     filters: Optional[List[str]],
+    dryrun: bool,
     score: int,
     noimage: bool,
     nomerge: bool,
@@ -983,6 +984,11 @@ async def downloader(
     # no-fail is equivalent to max fuzz
     if nofail:
         score = 0
+    # besides the explicit setting these two need to disable images,
+    # one because the console is not ready to print images (or emoji)
+    # the other to prevent unpleasant empty space.
+    if nub_verbose or dryrun:
+        noimage = True
 
     # build the function that will be called to print data,
     # filling in some fixed arguments
@@ -1111,6 +1117,7 @@ async def downloader(
                                     first_wait,
                                     wait_before,
                                     MAX_RETRIES,
+                                    dryrun,
                                 ):
                                     first_wait = False
                                     downloaded_once = True
@@ -1191,11 +1198,8 @@ def strfy(required_score, short_names, nub_verbose, r, urlsdict=None):
     return f"{score_text} {thumb_text}{linked1}{linked2}{linked3}"
 
 
-no_download = os.getenv("NODOWNLOAD")
-
-
 async def download(
-    client, url, destination, getting_format, waiting_format, first_wait, wait_before, max_retries
+    client, url, destination, getting_format, waiting_format, first_wait, wait_before, max_retries, dryrun
 ):
     """returns True if downloaded. To download, it must have waited, if first_wait is True.
     Exceptions may happen instead of returning False, but they are all caught outside
@@ -1213,7 +1217,7 @@ async def download(
                 length = int(r.headers["Content-Length"])
                 if length < 100:  # obviously corrupt 'thumbnail', skip this thumb
                     return False
-                if not no_download:  # test
+                if not dryrun:  # test
                     with open(destination, "w+b") as f:
                         if first_wait:
                             await printwait(wait_before, waiting_format)
