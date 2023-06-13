@@ -289,7 +289,7 @@ def removeprefix(name: str, pre: str):
 
 
 def replaceRoman(source, romana, number):
-    source = regex.sub(rf"([\s']){romana}([\s,]|$)", rf"\g<1>{number}\g<2>", source)
+    source = regex.sub(rf"([\s']|^){romana}([\s,]|$)", rf"\g<1>{number}\g<2>", source)
     return source
 
 
