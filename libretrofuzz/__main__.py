@@ -258,8 +258,6 @@ def removeparenthesis(input_str, open_p="(", close_p=")"):
             paren_level -= 1
         elif not paren_level:
             result += ch
-    if paren_level != 0:
-        error(f"'{input_str}' has a unclosed parenthesis")
     return result
 
 
