@@ -50,14 +50,6 @@ import regex
 
 regex.DEFAULT_VERSION = regex.VERSION1
 
-# stop showing the variables - a library installed this behind my back
-try:
-    from rich.traceback import install
-
-    install(show_locals=False)
-except ImportError:
-    pass
-
 
 ###########################################
 ########### SCRIPT SETTINGS ###############
