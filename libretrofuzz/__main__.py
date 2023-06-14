@@ -328,9 +328,6 @@ class TitleScorer(object):
         increment_common_number = remaining * 0.03
         increment_common_length = remaining * 0.97
 
-        rest_of_score = increment_common_number * 0.01 * cnbrs  # 100 gives 1
-        common_prop = len(os.path.commonprefix([name_ns, other_ns])) / len(name_ns)
-        rest_of_score += increment_common_length * common_prop
         sum_ns = ""
         for sub, sub_ns in zip(other_subs, other_ns_subs):
             # if you find a exact match on either a subtitle
@@ -343,6 +340,9 @@ class TitleScorer(object):
                 rest_of_score += increment_common_length * 0.01 * fuzz.WRatio(name, other)
                 return DEF_SCORE + rest_of_score
 
+        rest_of_score = increment_common_number * 0.01 * cnbrs  # 100 gives 1
+        common_prop = len(os.path.commonprefix([name_ns, other_ns])) / len(name_ns)
+        rest_of_score += increment_common_length * common_prop
         # give a penality if you got here and the name you're checking against
         # already has a perfect match in the playlist being processed. This usually
         # penalizes hack names but removes a lot of inane false positives
