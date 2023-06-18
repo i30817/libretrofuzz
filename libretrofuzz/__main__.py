@@ -309,7 +309,7 @@ class TitleScorer(object):
         if name == other:
             return MAX_SCORE
         (_, name_ns, _, _, digits) = self.normcache[name]
-        (_, other_ns, other_subs, other_ns_subs, other_digits) = self.normcache2[other]
+        (_, other_ns, _, other_ns_subs, other_digits) = self.normcache2[other]
         if name_ns == other_ns:
             return MAX_SCORE
 
@@ -321,7 +321,7 @@ class TitleScorer(object):
         increment_common_length = remaining * 0.97
 
         sum_ns = ""
-        for sub, sub_ns in zip(other_subs, other_ns_subs):
+        for sub_ns in other_ns_subs:
             # if you find a exact match on either a subtitle
             # or a sequence of subtitles from the start, give
             # a 'winning' score but distingish them by the rest
@@ -340,7 +340,7 @@ class TitleScorer(object):
         # penalizes hack names but removes a lot of inane false positives
         # (depending on the playlist completeness). Disable it when processing hacks
         # TODO remove this when a feature to choose when waiting happens
-        if not self.hack and other_ns in self.normcache:
+        if not self.hack and other in self.normcache:
             rest_of_score -= remaining * 0.65
         return fuzz.WRatio(name, other) * (DEF_SCORE / 100) + rest_of_score
 
@@ -1007,12 +1007,10 @@ async def downloader(
         # this is the character that libretro-thumbnails uses as placeholder
         norm_name = regex.sub(forbidden, "_", norm_name)
         normtuple = norm(norm_name)
-        # cache normalization with all the name variants checked
-        # reason is to be able to reuse the calculation (name)
+        # cache the calculation for name
         normcache[name] = normtuple  # original
-        # check if server names are equal to playlist normalized variants
+        # to check during scoring, which uses normalized keys
         normcache[normtuple[0]] = normtuple  # normalized
-        normcache[normtuple[1]] = normtuple  # normalized nospace
     tmpdict = dict()
     normcache2 = dict()
     for x in remote_names:
