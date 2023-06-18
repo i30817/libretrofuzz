@@ -18,8 +18,7 @@ from typing import Optional, List
 from urllib.request import unquote, quote
 from tempfile import TemporaryDirectory
 from contextlib import asynccontextmanager, contextmanager
-from functools import partial
-from itertools import chain
+from itertools import chain, tee
 from struct import unpack
 import json
 import os
@@ -504,7 +503,7 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
     db_names without extension are the system directory names libretro searchs for the thumbnail.
     """
     names = []
-    dbs = set()
+    dbs = []
     try:
         with RzipReader(playlist).open() as f:
             data = json.load(f)
@@ -517,8 +516,8 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
                 ), f"\n{json.dumps(r,indent=4)} of playlist {playlist} has no valid db_name"
                 # add the label name and the db name (it's a playlist name, minus the extension '.lpl')
                 db = r["db_name"][:-4]
-                dbs.add(db)
-                names.append((r["label"], db))
+                dbs.append(db)
+                names.append(r["label"])
     except json.JSONDecodeError:
         # older version of the playlist format, this has no error correction; the extra lines after the
         # game entries can be between 0 and 5, because retroarch will ignore lines missing at the end.
@@ -529,17 +528,18 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
             for i in range(0, gamelineslen, 6):
                 name = data[i + 1]
                 db = data[i + 5][:-4]
-                dbs.add(db)
-                names.append((name, db))
+                dbs.append(db)
+                names.append(name)
     # create the directories we will 'maybe' need. This is not so problematic
     # as it seems since likely len(dbs) == 1, so 6 directories per playlist
     # versus having os.makedirs called hundred of times for larger playlists
     # this is vulnerable to ToCToU deletion but everything is with directories
+    dbs_set = set(dbs)
     for parent in [temp_dir, thumbnails_dir]:
-        for db in dbs:
+        for db in dbs_set:
             for dirname in Thumbs._fields:
                 os.makedirs(Path(parent, db, dirname), exist_ok=True)
-    return names
+    return names, dbs
 
 
 def getPath(cfg: Path, setting: str, default_value: str):
@@ -754,11 +754,12 @@ def mainfuzzsingle(
                 # RA thumbnail dir to make mv the file just renaming, not cp
                 with TemporaryDirectory(prefix="libretrofuzz", dir=thumbnails_dir) as tmpdir:
                     echo(style(f"{playlist} -> {system}", bold=True))
-                    names = readPlaylistAndPrepareDirectories(
+                    names, dbs = readPlaylistAndPrepareDirectories(
                         Path(playlist_dir, playlist), tmpdir, thumbnails_dir
                     )
                     await downloader(
                         names,
+                        dbs,
                         system,
                         wait_before,
                         wait_after,
@@ -874,10 +875,11 @@ def mainfuzzall(
                         )
                     for playlist, system in inSystems:
                         echo(style(f"{system}.lpl -> {system}", bold=True))
-                        names = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
+                        names, dbs = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
                         try:
                             await downloader(
                                 names,
+                                dbs,
                                 system,
                                 wait_before,
                                 wait_after,
@@ -942,7 +944,8 @@ async def downloadgamenames(client, system):
 
 
 async def downloader(
-    names: [(str, str)],
+    names: [str],
+    dbs: [str],
     system: str,
     wait_before: Optional[float],
     wait_after: Optional[float],
@@ -961,6 +964,9 @@ async def downloader(
     thumbnails_dir: Path,
     client: AsyncClient,
 ):
+    # number of success and failures to print at the end
+    failure = 0
+    success = 0
     # not a error to pass a empty playlist
     if len(names) == 0:
         return
@@ -988,38 +994,34 @@ async def downloader(
     if not remote_names:
         raise StopPlaylist()
 
-    # build the function that will be called to print data,
-    # filling in some fixed arguments
+    # build the function that will be called to print data
     short_names = os.getenv("SHORT")
     short_names = True if short_names and short_names != "0" else False
-    strfy_runtime = partial(strfy, score, short_names, nub_verbose)
-    norm = partial(normalizer, nometa, hack)
-    failure = 0
-    success = 0
+
+    def strfy_runtime(s, urldict=None):
+        return strfy(score, short_names, nub_verbose, s, urldict)
 
     # preprocess data to build a heuristic later. Do not move
     # into the later loop because thats when the heuristic is used
-    normcache = dict()
-    # nonetheless save the normalization to not be forced to redo it
-    for name, _ in names:
-        # done before the forbidden removal because the 'before' str might have '_'
-        norm_name = extractbefore(before, name)
-        # this is the character that libretro-thumbnails uses as placeholder
-        norm_name = regex.sub(forbidden, "_", norm_name)
-        normtuple = norm(norm_name)
-        # cache the calculation for name
-        normcache[name] = normtuple  # original
-        # to check during scoring, which uses normalized keys
-        normcache[normtuple[0]] = normtuple  # normalized
-    tmpdict = dict()
-    normcache2 = dict()
-    for x in remote_names:
-        normtuple = norm(x)
-        normcache2[normtuple[0]] = normtuple  # normalized only
-        tmpdict[x] = normtuple[0]
-    remote_names = tmpdict
+    def norm(n):
+        return normalizer(nometa, hack, n)
+
+    def norm_local(n):
+        return norm(regex.sub(forbidden, "_", extractbefore(before, n)))
+
+    a, b = tee(map(norm_local, names))
+    # store normalized local name as key
+    normcache = {t[0]: t for t in a}
+    # store the actual local name as key (cache)
+    normcache.update(zip(names, b))
+    # remote names normalization and cache
+    a, b = tee(map(norm, remote_names))
+    # store normalized remote name as key
+    normcache2 = {t[0]: t for t in a}
+    # remote name as key, normalized remote name as value
+    remote_names = {x: t[0] for x, t in zip(remote_names, b)}
     scorer = TitleScorer(normcache, normcache2, hack)
-    for name, destination in names:
+    for name, destination in zip(names, dbs):
         await asyncio.sleep(0)  # update key status
         checkEscape()  # check key status
         # if the user used filters, filter everything that doesn't match any of the globs
