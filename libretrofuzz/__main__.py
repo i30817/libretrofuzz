@@ -978,15 +978,6 @@ async def downloader(
     if nub_verbose or dryrun:
         noimage = True
 
-    # build the function that will be called to print data,
-    # filling in some fixed arguments
-    short_names = os.getenv("SHORT")
-    short_names = True if short_names and short_names != "0" else False
-    strfy_runtime = partial(strfy, score, short_names, nub_verbose)
-    norm = partial(normalizer, nometa, hack)
-    failure = 0
-    success = 0
-
     thumbs = Thumbs._make(await downloadgamenames(client, system))
     # we choose the highest similarity of all 3 directories,
     # since no mixed matches are allowed
@@ -996,6 +987,15 @@ async def downloader(
     remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
     if not remote_names:
         raise StopPlaylist()
+
+    # build the function that will be called to print data,
+    # filling in some fixed arguments
+    short_names = os.getenv("SHORT")
+    short_names = True if short_names and short_names != "0" else False
+    strfy_runtime = partial(strfy, score, short_names, nub_verbose)
+    norm = partial(normalizer, nometa, hack)
+    failure = 0
+    success = 0
 
     # preprocess data to build a heuristic later. Do not move
     # into the later loop because thats when the heuristic is used
