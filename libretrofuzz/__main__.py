@@ -253,7 +253,7 @@ def removeparenthesis(input_str, open_p="(", close_p=")"):
     return result
 
 
-def extractbefore(name, before):
+def extractbefore(before, name):
     if before:
         # Ignore metadata and get the string before it
         name_without_meta = regex.search(r"(^[^\[({]*)", name)
@@ -1003,7 +1003,7 @@ async def downloader(
     # nonetheless save the normalization to not be forced to redo it
     for name, _ in names:
         # done before the forbidden removal because the 'before' str might have '_'
-        norm_name = extractbefore(name, before)
+        norm_name = extractbefore(before, name)
         # this is the character that libretro-thumbnails uses as placeholder
         norm_name = regex.sub(forbidden, "_", norm_name)
         normtuple = norm(norm_name)
