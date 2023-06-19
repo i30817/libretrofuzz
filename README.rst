@@ -7,7 +7,7 @@ These programs, for each game label on a playlist, download the most similar nam
 
 There are several options to fit unusual labels and increase fuzziness, but you can just run them to get a adequate default that is neither too strict or lax.
 
-If you still want more thumbnails, using ``libretro-fuzz --min 80 --delay 5 --delay 5`` works (smaller ``--min`` increases fuzz), with some delays introduced to check if you want to keep the game selected for the thumbnails. If you prefer only exact matches, use `--min 100`.
+If you still want more thumbnails, using ``libretro-fuzz --min 80 --delay 15 --delay-after 15`` works (smaller ``--min`` increases fuzz), with some delays introduced to check if you want to keep the game selected for the thumbnails. If you prefer only exact matches, use ``--min 100``.
 
 If you use ``libretro-fuzz``, it will download for a single playlist by asking for the playlist and system if they're not provided.
 If you use ``libretro-fuzzall``, it will download for all playlists with standard libretro names, and will skip custom playlists.
@@ -17,7 +17,7 @@ Besides those differences, if no retroarch.cfg is provided, both programs try to
 If `chafa <https://github.com/hpjansson/chafa>`_ is installed, the program will display new thumbnails of a game, with gray border for images already in use and with green border for new images. Chafa works better with a recent release and on a `sixel <https://en.wikipedia.org/wiki/Sixel>`_ or `kitty <https://sw.kovidgoyal.net/kitty/graphics-protocol/>`_ compatible shell.
 
 Example:
- | ``libretro-fuzz --system 'Commodore - Amiga' --no-merge --before '_'``
+ | ``libretro-fuzz --system 'Commodore - Amiga' --before '_'``
 
  The Retroplay WHDLoad set has labels like ``MonkeyIsland2_v1.3_0020`` after a manual scan. These labels *often* don't have subtitles (but not always) and all the metadata is not separated from the name by brackets. Select the playlist that contains those whdloads to download from the libretro amiga thumbnails.
 
@@ -38,7 +38,7 @@ A common scenario is the thumbnail server not having a single thumbnail of the g
 Example:
   ``libretro-fuzz --system 'Commodore - Amiga' --before '_' --filter '[Ii]shar*'``
 
-  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, because of ``--filter``, the Ishar series in the WHDLoad playlist would redownload.
+  The best way to solve these issues is to upload the right cover to the respective libretro-thumbnail subproject with the correct name of the game variant. Then you can redownload just the updated thumbnails with a label, in this example, because of ``--filter``, the Ishar series in the WHDLoad playlist would redownload because the glob used matches all names that start with 'Ishar' or 'ishar'.
 
 To debug why a game is not being matched, SHORT=1 before the command will display the simplified names checked for similarity.
 
@@ -70,7 +70,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --before TEXT         Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.
   --address URL         | URL with libretro-thumbnails server. For local files, git clone/unzip packs, run ``'python3 -m http.server'`` in parent dir, and use ``--address 'http://localhost:8000'``.
                         | [default: https://thumbnails.libretro.com]
-  --dry-run             Print results only, no image download.
+  --dry-run             Print results only, no delay or image download.
   --verbose N           | Show length N list: score, name, emoji hyperlinks.
                         | [x>=1]
   --install-completion  Install completion for the current shell.
