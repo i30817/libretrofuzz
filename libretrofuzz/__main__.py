@@ -1046,7 +1046,7 @@ async def downloader(
         name = regex.sub(forbidden, "_", name)
         # Delete old images in the case of --filter.
         # this always happens, for consistency
-        if filters:
+        if filters and not dryrun:
             for dirname in Thumbs._fields:
                 Path(thumbnails_dir, destination, dirname, name + ".png").unlink(missing_ok=True)
         if winners:
