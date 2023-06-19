@@ -43,7 +43,7 @@ from questionary import Style, select
 from httpx import RequestError, HTTPStatusError, Client, AsyncClient
 from tqdm import trange, tqdm
 from typer.colors import YELLOW, RED, BLUE, GREEN
-from typer import style, echo, Typer, Exit, Argument, Option
+from typer import style, echo, Typer, Exit, Argument, Option, Context
 from prompt_toolkit.input import create_input
 import regex
 
@@ -544,8 +544,12 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
 
 def getPath(cfg: Path, setting: str, default_value: str):
     """returns paths inside of a cfg file setting"""
-    with open(cfg) as f:
-        file_content = "[DUMMY]\n" + f.read()
+    try:
+        with open(cfg) as f:
+            file_content = "[DUMMY]\n" + f.read()
+    except UnicodeDecodeError:
+        error(f"Invalid Retroarch cfg file: {cfg}")
+        raise Exit(code=1)
     configParser = configparser.RawConfigParser()
     configParser.read_string(file_content)
     try:
@@ -583,9 +587,6 @@ def common_errors(cfg: Path, playlist: str, system: str, address: str):
     viewer = which("chafa")
     if not viewer:
         echo("Shell image viewer chafa was not found")
-    if not cfg or not cfg.is_file():
-        error(f"Invalid Retroarch cfg file: {cfg}")
-        raise Exit(code=1)
     thumbnails_directory = getPath(cfg, "thumbnails_directory", "thumbnails")
     if (
         not thumbnails_directory
@@ -631,21 +632,56 @@ def common_errors(cfg: Path, playlist: str, system: str, address: str):
     return (nub_verbose, playlist_dir, thumbnails_directory, sorted(playlists), sorted(systems))
 
 
+def autocomplete(ctx: Context, args: List[str], incomplete: str):
+    conf = Path(ctx.args[0]) if ctx.args else CONFIG
+    if not conf or not conf.is_file() or not os.access(conf, os.R_OK):
+        return []
+    playlist_dir = getPath(conf, "playlist_directory", "playlists")
+    if not playlist_dir or not playlist_dir.is_dir() or not os.access(playlist_dir, os.R_OK):
+        return []
+    # if the name doesn't start with incomplete this is empty (like passing ./)
+    # if it returns a empty list then the program falls back to the cmdline parsing
+    return [
+        pl.stem
+        for pl in playlist_dir.glob("./*.lpl")
+        if pl.is_file() and os.access(pl, os.R_OK) and pl.name.startswith(incomplete)
+    ]
+
+
+# this is necessary because typer has a bug
+# where any path typed is considered 'complete'
+# for arguments (even if exists=True) and a space
+# is added to the end - this works around it.
+def complete_path():
+    return []
+
+
 #####################
 # Main programs code
 #####################
 
 
 def mainfuzzsingle(
-    cfg: Path = Argument(CONFIG, help="Path to the retroarch cfg file. If not default, asked from the user."),
+    cfg: Path = Argument(
+        CONFIG,
+        help="Path to the retroarch cfg file. If not default, asked from the user.",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+        autocompletion=complete_path,
+    ),
     playlist: str = Option(
         None,
         metavar="NAME",
+        shell_complete=autocomplete,
         help="Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.",
     ),
     system: str = Option(
         None,
         metavar="NAME",
+        shell_complete=autocomplete,
         help="Directory name in the server to download thumbnails. If not provided, asked from the user.",
     ),
     wait_after: Optional[float] = Option(
@@ -789,7 +825,16 @@ def mainfuzzsingle(
 
 
 def mainfuzzall(
-    cfg: Path = Argument(CONFIG, help="Path to the retroarch cfg file. If not default, asked from the user."),
+    cfg: Path = Argument(
+        CONFIG,
+        help="Path to the retroarch cfg file. If not default, asked from the user.",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+        autocompletion=complete_path,
+    ),
     wait_after: Optional[float] = Option(
         None,
         "--delay-after",
