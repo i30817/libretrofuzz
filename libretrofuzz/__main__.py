@@ -43,7 +43,7 @@ from questionary import Style, select
 from httpx import RequestError, HTTPStatusError, Client, AsyncClient
 from tqdm import trange, tqdm
 from typer.colors import YELLOW, RED, BLUE, GREEN
-from typer import style, echo, run, Exit, Argument, Option
+from typer import style, echo, Typer, Exit, Argument, Option
 from prompt_toolkit.input import create_input
 import regex
 
@@ -77,9 +77,9 @@ if sys.platform == "win32":
     # these are the default 32 and 64 bits installer paths, since there
     # is no way to know what the user choses, check the defaults only.
     CONFIG = Path(r"C:/RetroArch-Win64/retroarch.cfg")
-    if not CONFIG.exists():
+    if not CONFIG.is_file():
         CONFIG = Path(r"C:/RetroArch/retroarch.cfg")
-        if not CONFIG.exists():
+        if not CONFIG.is_file():
             echo("Portable install default location config not found, trying with APPDATA location")
             var = os.getenv("APPDATA")
             if var:
@@ -1299,11 +1299,15 @@ def displayImages(downloaded: dict):
 
 
 def fuzzsingle():
-    run(mainfuzzsingle)
+    app = Typer()
+    app.command()(mainfuzzsingle)
+    app()
 
 
 def fuzzall():
-    run(mainfuzzall)
+    app = Typer()
+    app.command()(mainfuzzall)
+    app()
 
 
 if __name__ == "__main__":
