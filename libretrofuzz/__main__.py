@@ -567,7 +567,7 @@ def getPath(cfg: Path, setting: str, default_value: str):
 
 
 def error(error: str):
-    echo(style(error, fg=RED, bold=True))
+    echo(style(error, fg=RED, bold=True), err=True)
 
 
 def common_errors(cfg: Path, playlist: str, system: str, address: str):
