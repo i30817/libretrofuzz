@@ -978,6 +978,9 @@ async def downloader(
     # no-fail is equivalent to max fuzz
     if nofail:
         score = 0
+    # filter disables no-merge since the setting deletes the old images
+    if filters:
+        nomerge = False
     # besides the explicit setting these two need to disable images,
     # one because the console is not ready to print images (or emoji)
     # the other to prevent unpleasant empty space.
@@ -1041,13 +1044,18 @@ async def downloader(
         # still remove the forbidden characters
         # the name will be used in the filename
         name = regex.sub(forbidden, "_", name)
+        # Delete old images in the case of --filter.
+        # this always happens, for consistency
+        if filters:
+            for dirname in Thumbs._fields:
+                Path(thumbnails_dir, destination, dirname, name + ".png").unlink(missing_ok=True)
         if winners:
             allow = True
             # these parent directories were created when reading the playlist
             # more efficient than doing it a playlist game loop
             real_thumb_dir = Path(thumbnails_dir, destination)
             down_thumb_dir = Path(tmpdir, destination)
-            if not filters and nomerge:
+            if nomerge:
                 # to implement no-merge you have to disable downloads on
                 # 'at least one' thumbnail (including user added ones)
                 missing_thumbs = 0
@@ -1111,15 +1119,6 @@ async def downloader(
                                     downloaded_once = True
                                     urls[(dirname, winner)] = url
                                     break
-                    # Delete old images in the case of --filter.
-                    # internet not available will exit the program
-                    # so this won't happen in a loop in that case
-                    # broken/not found server links WILL get deleted
-                    # it will also skip if the user cancels
-                    # as is logical this is before image display
-                    if filters:
-                        for old, _ in downloaded_dict.values():
-                            old.unlink(missing_ok=True)
                     if not noimage and viewer and downloaded_once:
                         displayImages(downloaded_dict)
                         if wait_after is not None:
@@ -1147,12 +1146,6 @@ async def downloader(
                 name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                 failure_format = f'{style("Failure",     fg=RED, bold=True)}: {name_format}'
                 echo(failure_format)
-            # same idea as above can't be unified because
-            # the above delete needs to be after downloads
-            # but before displaying the image
-            if filters:
-                for dirname in Thumbs._fields:
-                    Path(thumbnails_dir, destination, dirname, name + ".png").unlink(missing_ok=True)
     echo(f"{success}/{len(names)} successes {failure}/{len(names)} failures")
 
 
