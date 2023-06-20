@@ -1237,7 +1237,8 @@ async def download(
             async with client.stream("GET", url, timeout=15) as r:
                 if r.status_code == 521:  # cloudflare exploded, skip the whole playlist
                     raise StopPlaylist()
-                if r.status_code == 404:  # broken image or symlink link, skip just this thumb
+                # broken image or symlink link, skip just this thumb
+                if r.status_code == 400 or r.status_code == 404 or r.status_code == 410:
                     return False
                 r.raise_for_status()  # error before reading the header goes into retrying
                 length = int(r.headers["Content-Length"])
@@ -1260,9 +1261,9 @@ async def download(
                                     checkDownload()
                                 w.write(chunk)
             return True
-        except (RequestError, HTTPStatusError):
+        except (RequestError, HTTPStatusError) as e:
             if max_retries <= 0:
-                error("Download max retries exceeded, exiting")
+                error(f"Download max retries exceeded, exiting: {e}")
                 raise Exit(code=1)
             max_retries -= 1
 
