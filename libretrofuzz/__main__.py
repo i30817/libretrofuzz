@@ -1224,9 +1224,9 @@ def strfy(required_score, short_names, nub_verbose, r, urlsdict=None):
         url2 = None
         url3 = None
     thumb_text = thumb_norm if short_names else thumb_name
-    linked1 = style(link(url1, "🎴")) if url1 else ""
-    linked2 = style(link(url2, "🎬")) if url2 else ""
-    linked3 = style(link(url3, "📸")) if url3 else ""
+    linked1 = link(url1, "🎴") if url1 else ""
+    linked2 = link(url2, "🎬") if url2 else ""
+    linked3 = link(url3, "📸") if url3 else ""
     return f"{score_text} {thumb_text}{linked1}{linked2}{linked3}"
 
 
