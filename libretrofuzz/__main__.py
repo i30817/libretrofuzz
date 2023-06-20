@@ -815,7 +815,7 @@ def mainfuzzsingle(
                         client,
                     )
         except StopPlaylist:
-            error(f"Unexpected error accessing server directory {system}")
+            error(f"Unexpected error accessing server directory: {system}")
             raise Exit(code=1)
         except StopProgram:
             error("Cancelled by user, exiting")
@@ -944,7 +944,7 @@ def mainfuzzall(
                                 client,
                             )
                         except StopPlaylist:
-                            error(f"Unexpected error accessing server directory {system}")
+                            error(f"Unexpected error accessing server directory: {system}")
         except StopProgram:
             error("Cancelled by user, exiting")
             raise Exit()
@@ -952,7 +952,7 @@ def mainfuzzall(
     asyncio.run(runit(), debug=False)
 
 
-async def downloadgamenames(client, system):
+async def downloadgamenames(client, system, nub_verbose):
     """returns [ dict(Game_Name, Game_Url), dict(Game_Name, Game_Url), dict(Game_Name, Game_Url) ]
     for each of the server directories '/Named_Boxarts/', '/Named_Titles/', '/Named_Snaps/'
     (potentially some of these dicts may be empty if the server doesn't have the directory)
@@ -960,16 +960,22 @@ async def downloadgamenames(client, system):
     lr_thumbs = ADDRESS + "/" + quote(system)  # then get the thumbnails from the system name
     args = []
     try:
-        for tdir in ["/Named_Boxarts/", "/Named_Titles/", "/Named_Snaps/"]:
+        for tdir, emoji in [("/Named_Boxarts/", "🎴"), ("/Named_Titles/", "🎬"), ("/Named_Snaps/", "📸")]:
             lr_thumb = lr_thumbs + tdir
             response = ""
             async with client.stream("GET", lr_thumb, timeout=15) as r:
                 async for chunk in r.aiter_text(4096):
                     checkEscape()
                     response += chunk
-            # not found is ok, some server system directories don't have all the subdirectories
+            # not found is ok, some system directories don't have all the subdirectories
             if r.status_code == 404:
                 l1 = {}
+            # or are currently unavailable
+            elif r.status_code == 400:
+                err = lr_thumb if nub_verbose else link(lr_thumb, emoji)
+                error(f"Unavailable server directory: {err}")
+                l1 = {}
+            # cloudflare down
             elif r.status_code == 521:
                 raise StopPlaylist()
             else:
@@ -1032,7 +1038,7 @@ async def downloader(
     if nub_verbose or dryrun:
         noimage = True
 
-    thumbs = Thumbs._make(await downloadgamenames(client, system))
+    thumbs = Thumbs._make(await downloadgamenames(client, system, nub_verbose))
     # we choose the highest similarity of all 3 directories,
     # since no mixed matches are allowed
     # (until you call again without --no-merge anyway
