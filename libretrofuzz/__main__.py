@@ -324,7 +324,9 @@ class TitleScorer(object):
             # if you find a exact match on either a subtitle
             # or a sequence of subtitles from the start, give
             # a 'winning' score but distingish them by the rest
-            # by name ratio and digits ratio
+            # by name ratio and digits ratio; note that this
+            # doesn't include subtitles in 'name' matching a
+            # subtitle in 'other', that's full of false positives
             if name_ns == (sum_ns := sum_ns + sub_ns) or name_ns == sub_ns:
                 # reset increment and rest of score
                 rest_of_score = increment_common_number * 0.01 * cnbrs
