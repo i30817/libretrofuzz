@@ -18,7 +18,7 @@ from typing import Optional, List
 from urllib.request import unquote, quote
 from tempfile import TemporaryDirectory
 from contextlib import asynccontextmanager, contextmanager
-from itertools import chain, tee
+from itertools import chain
 from struct import unpack
 import json
 import os
@@ -305,11 +305,9 @@ class TitleScorer(object):
         self.hack = hack
 
     def __call__(self, name, other, score_cutoff=None):
-        if name == other:
-            return MAX_SCORE
-        (_, name_ns, _, _, digits) = self.normcache[name]
-        (_, other_ns, _, other_ns_subs, other_digits) = self.normcache2[other]
-        if name_ns == other_ns:
+        (name, name_ns, _, _, digits) = self.normcache[name]
+        (other, other_ns, _, other_ns_subs, other_digits) = self.normcache2[other]
+        if name == other or name_ns == other_ns:
             return MAX_SCORE
 
         remaining = MAX_SCORE - DEF_SCORE
@@ -1051,13 +1049,6 @@ async def downloader(
     if not remote_names:
         raise StopPlaylist()
 
-    # build the function that will be called to print data
-    short_names = os.getenv("SHORT")
-    short_names = True if short_names and short_names != "0" else False
-
-    def strfy_runtime(s, urldict=None):
-        return strfy(score, short_names, nub_verbose, s, urldict)
-
     # preprocess data to build a heuristic later. Do not move
     # into the later loop because thats when the heuristic is used
     def norm(n):
@@ -1066,17 +1057,19 @@ async def downloader(
     def norm_local(n):
         return norm(regex.sub(forbidden, "_", extractbefore(before, n)))
 
-    a, b = tee(map(norm_local, names))
-    # store normalized local name as key
-    normcache = {t[0]: t for t in a}
-    # store the actual local name as key (cache)
-    normcache.update(zip(names, b))
-    # remote names normalization and cache
-    a, b = tee(map(norm, remote_names))
-    # store normalized remote name as key
-    normcache2 = {t[0]: t for t in a}
-    # remote name as key, normalized remote name as value
-    remote_names = {x: t[0] for x, t in zip(remote_names, b)}
+    # local names normalization cache
+    normcache = dict(zip(names, map(norm_local, names)))
+    # remote names normalization cache
+    normcache2 = dict(zip(remote_names, map(norm, remote_names)))
+
+    # short names bool, got from enviromental variable
+    short_names = os.getenv("SHORT")
+    short_names = True if short_names and short_names != "0" else False
+
+    # build the function that will be called to print data
+    def strfy_runtime(s, urldict=None):
+        return strfy(normcache2, score, short_names, nub_verbose, s, urldict)
+
     scorer = TitleScorer(normcache, normcache2, hack)
     for name, destination in zip(names, dbs):
         await asyncio.sleep(0)  # update key status
@@ -1084,17 +1077,15 @@ async def downloader(
         # if the user used filters, filter everything that doesn't match any of the globs
         if filters and not any(map(lambda x: fnmatch.fnmatch(name, x), filters)):
             continue
-        # cached normalized name
-        nameaux = normcache[name][0]
         # normalization can make it so that the winner has the same score as the runner up(s)
         # so try in several versions (to prevent this use '--verbose 1')
         # improves results because spaces or case errors happen in the server
-        result = process.extract(nameaux, remote_names, scorer=scorer, limit=verbose or 2)
+        result = process.extract(name, remote_names, scorer=scorer, limit=verbose or 2)
         assert result
         _, max_score, _ = result[0]
         winners = [x for x in result if x[1] == max_score and x[1] >= score]
         show = result if verbose else winners
-        name_format = style((nameaux if short_names else name) + ": ", bold=True)
+        name_format = style((normcache[name][0] if short_names else name) + ": ", bold=True)
         # still remove the forbidden characters
         # the name will be used in the filename
         name = regex.sub(forbidden, "_", name)
@@ -1119,7 +1110,11 @@ async def downloader(
                     if not real.exists():
                         missing_thumbs += 1
                         if not served__thumbs:
-                            served__thumbs = any(map(lambda x: x[2] in getattr(thumbs, dirname), winners))
+
+                            def checkremote(winner):
+                                return winner[0] in getattr(thumbs, dirname)
+
+                            served__thumbs = any(map(checkremote, winners))
                 allow = missing_thumbs == 3
                 # despite the above, print only for when it would download
                 # if it was allowed, otherwise it is confusing
@@ -1149,7 +1144,7 @@ async def downloader(
                         temp = Path(down_thumb_dir, dirname, name + ".png")
                         downloaded_dict[dirname] = (real, temp)
                         for winner in winners:
-                            _, t_score, t_name = winner
+                            t_name, t_score, _ = winner
                             # something to download
                             url = getattr(thumbs, dirname).get(t_name, None)
                             if not url:
@@ -1211,17 +1206,18 @@ async def printwait(wait: Optional[float], waiting_format: str):
             await asyncio.sleep(0.1)
 
 
-def strfy(required_score, short_names, nub_verbose, r, urlsdict=None):
-    thumb_norm, thumb_score, thumb_name = r
+def strfy(norm_cache, required_score, short_names, nub_verbose, r, urlsdict=None):
+    thumb_name, thumb_score, _ = r
+    thumb_norm = norm_cache[thumb_name][0]
     score_color = RED if thumb_score < required_score else GREEN
     thumb_magnt = f"{thumb_score:.4f}" if short_names else f"{thumb_score:.1f}"
     score_text = style(thumb_magnt, fg=score_color, bold=True)
     if nub_verbose:
         return f"{score_text} {thumb_norm}"
     elif urlsdict:
-        url1 = urlsdict.get((Thumbs._fields[0], r), None)
-        url2 = urlsdict.get((Thumbs._fields[1], r), None)
-        url3 = urlsdict.get((Thumbs._fields[2], r), None)
+        url1 = urlsdict.get(("Named_Boxarts", r), None)
+        url2 = urlsdict.get(("Named_Titles", r), None)
+        url3 = urlsdict.get(("Named_Snaps", r), None)
     else:
         url1 = None
         url2 = None
