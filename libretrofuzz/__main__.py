@@ -1082,8 +1082,8 @@ async def downloader(
         # improves results because spaces or case errors happen in the server
         result = process.extract(name, remote_names, scorer=scorer, limit=verbose or 2)
         assert result
-        _, max_score, _ = result[0]
-        winners = [x for x in result if x[1] == max_score and x[1] >= score]
+        _, best_score, _ = result[0]
+        winners = [x for x in result if x[1] == best_score and x[1] >= score]
         show = result if verbose else winners
         name_format = style((normcache[name][0] if short_names else name) + ": ", bold=True)
         # still remove the forbidden characters
