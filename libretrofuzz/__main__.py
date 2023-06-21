@@ -379,6 +379,8 @@ def normalizer(nometa, hack, t):
         subtitles = t.split(": ")
     subtitles2 = [None] * len(subtitles)
     for i, st in enumerate(subtitles):
+        # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
+        st = "".join([c for c in unicodedata.normalize("NFKD", st) if not unicodedata.combining(c)])
         # remove all symbols, except, ',' and ''', here for camelcase split
         st = regex.sub(almost_symbols_pattern, "", st)
         # CamelCaseNames for local labels are common when there are no spaces
@@ -449,8 +451,6 @@ def normalizer(nometa, hack, t):
         st = st.replace(" and ", " ")
         # and why not
         st = st.replace(" the ", " ")
-        # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
-        st = "".join([c for c in unicodedata.normalize("NFKD", st) if not unicodedata.combining(c)])
         st = st.strip().split()
         subtitles[i] = " ".join(st)
         subtitles2[i] = "".join(st)
