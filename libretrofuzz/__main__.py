@@ -304,7 +304,7 @@ class TitleScorer(object):
         self.normcache2 = normcache2
         self.hack = hack
 
-    def __call__(self, name, other, processor=None, score_cutoff=None):
+    def __call__(self, name, other, score_cutoff=None):
         if name == other:
             return MAX_SCORE
         (_, name_ns, _, _, digits) = self.normcache[name]
