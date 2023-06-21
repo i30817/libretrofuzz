@@ -1078,9 +1078,9 @@ async def downloader(
         if filters and not any(map(lambda x: fnmatch.fnmatch(name, x), filters)):
             continue
         # normalization can make it so that the winner has the same score as the runner up(s)
-        # so try in several versions (to prevent this use '--verbose 1')
-        # improves results because spaces or case errors happen in the server
-        result = process.extract(name, remote_names, scorer=scorer, limit=verbose or 2)
+        # so enabling 'verbose 2+' can improve results if the server is badly organized
+        # however, don not do it by default, since it's a bit confusing.
+        result = process.extract(name, remote_names, scorer=scorer, limit=verbose or 1)
         assert result
         _, best_score, _ = result[0]
         winners = [x for x in result if x[1] == best_score and x[1] >= score]
