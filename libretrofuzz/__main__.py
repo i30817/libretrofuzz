@@ -1364,5 +1364,4 @@ def fuzzall():
 
 if __name__ == "__main__":
     # print(globals()[sys.argv[1]](*sys.argv[2:]))
-    error("Please run libretro-fuzz or libretro-fuzzall instead of running the script directly")
-    raise Exit(code=1)
+    error("Run libretro-fuzz or libretro-fuzzall instead of running the script directly")
