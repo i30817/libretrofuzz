@@ -369,6 +369,8 @@ def normalizer(nometa, hack, t):
     t = t.replace("_", " ")
     # remove any number of leading 0s that ends in a digit
     t = regex.sub(zero_lead_pattern, r"\g<1>\g<2>", t)
+    # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
+    t = "".join([c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c)])
     # split subtitles. ': ' is forbidden in server names
     # but may occur in the local name. Do this before camelcase
     # split because its hard to do a regex that allows splitting
@@ -379,9 +381,8 @@ def normalizer(nometa, hack, t):
         subtitles = t.split(": ")
     subtitles2 = [None] * len(subtitles)
     for i, st in enumerate(subtitles):
-        # remove diacritics (not to asian languages diacritics, only for 2 to 1 character combinations)
-        st = "".join([c for c in unicodedata.normalize("NFKD", st) if not unicodedata.combining(c)])
-        # remove all symbols, except, ',' and ''', here for camelcase split
+        # remove all symbols, except, ',' and ''', here
+        # because outside it would catch a subtitle marker
         st = regex.sub(almost_symbols_pattern, "", st)
         # CamelCaseNames for local labels are common when there are no spaces
         # do this to normalize for definite articles
