@@ -1058,9 +1058,9 @@ async def downloader(
         return norm(regex.sub(forbidden, "_", extractbefore(before, n)))
 
     # local names normalization cache
-    normcache = dict(zip(names, map(norm_local, names)))
+    normcache = dict(map(lambda n: (n, norm_local(n)), names))
     # remote names normalization cache
-    normcache2 = dict(zip(remote_names, map(norm, remote_names)))
+    normcache2 = dict(map(lambda n: (n, norm(n)), remote_names))
 
     # short names bool, got from enviromental variable
     short_names = os.getenv("SHORT")
@@ -1079,7 +1079,7 @@ async def downloader(
             continue
         # normalization can make it so that the winner has the same score as the runner up(s)
         # so enabling 'verbose 2+' can improve results if the server is badly organized
-        # however, don not do it by default, since it's a bit confusing.
+        # however, do not do it by default, since it's a bit confusing.
         result = process.extract(name, remote_names, scorer=scorer, limit=verbose or 1)
         assert result
         _, best_score, _ = result[0]
