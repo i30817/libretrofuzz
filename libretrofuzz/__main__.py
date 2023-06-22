@@ -59,6 +59,11 @@ DEF_SCORE = 90
 MAX_SCORE = 100
 MAX_RETRIES = 3
 MAX_WAIT_SECS = 60
+# Local libretro thumbnail directories
+THUMB_LDIRS = ["Named_Boxarts", "Named_Titles", "Named_Snaps"]
+# Server thumbnail directories, change if the server
+# is organized the same way but with different names
+THUMB_SDIRS = ["Named_Boxarts", "Named_Titles", "Named_Snaps"]
 # 00-1f are ascii control codes, rest are illegal windows filename chars according to powershell + &
 forbidden = regex.compile(
     r"[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008"
@@ -69,7 +74,7 @@ forbidden = regex.compile(
 viewer = None
 
 # makes a class with these fields, the subdir names on the server system dir of the types of thumbnails
-Thumbs = collections.namedtuple("Thumbs", ["Named_Boxarts", "Named_Titles", "Named_Snaps"])
+Thumbs = collections.namedtuple("Thumbs", THUMB_LDIRS)
 # this is for 64 bits too
 if sys.platform == "win32":
     # this order is to make 'portable' installs have priority in windows
@@ -538,7 +543,7 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
     dbs_set = set(dbs)
     for parent in [temp_dir, thumbnails_dir]:
         for db in dbs_set:
-            for dirname in Thumbs._fields:
+            for dirname in THUMB_LDIRS:
                 os.makedirs(Path(parent, db, dirname), exist_ok=True)
     return names, dbs
 
@@ -954,15 +959,14 @@ def mainfuzzall(
 
 
 async def downloadgamenames(client, system, nub_verbose):
-    """returns [ dict(Game_Name, Game_Url), dict(Game_Name, Game_Url), dict(Game_Name, Game_Url) ]
-    for each of the server directories '/Named_Boxarts/', '/Named_Titles/', '/Named_Snaps/'
-    (potentially some of these dicts may be empty if the server doesn't have the directory)
+    """returns [ dict(Game_Name, Game_Url),..., dict(Game_Name, Game_Url) ] for each
+    of the server download directories (dicts may be empty if the server dir is empty)
     """
     lr_thumbs = ADDRESS + "/" + quote(system)  # then get the thumbnails from the system name
     args = []
     try:
-        for tdir, emoji in [("/Named_Boxarts/", "🎴"), ("/Named_Titles/", "🎬"), ("/Named_Snaps/", "📸")]:
-            lr_thumb = lr_thumbs + tdir
+        for tdir, emoji in zip(THUMB_SDIRS, ["🎴", "🎬", "📸"]):
+            lr_thumb = f"{lr_thumbs}/{tdir}/"
             response = ""
             async with client.stream("GET", lr_thumb, timeout=15) as r:
                 async for chunk in r.aiter_text(4096):
@@ -1045,7 +1049,7 @@ async def downloader(
     # (until you call again without --no-merge anyway
     # or if they have the same score)
     remote_names = set()
-    remote_names.update(thumbs.Named_Boxarts.keys(), thumbs.Named_Titles.keys(), thumbs.Named_Snaps.keys())
+    remote_names.update(thumbs[0].keys(), thumbs[1].keys(), thumbs[2].keys())
     if not remote_names:
         raise StopPlaylist()
 
@@ -1092,7 +1096,7 @@ async def downloader(
         # Delete old images in the case of --filter.
         # this always happens, for consistency
         if filters and not dryrun:
-            for dirname in Thumbs._fields:
+            for dirname in THUMB_LDIRS:
                 Path(thumbnails_dir, destination, dirname, name + ".png").unlink(missing_ok=True)
         if winners:
             allow = True
@@ -1105,7 +1109,7 @@ async def downloader(
                 # 'at least one' thumbnail (including user added ones)
                 missing_thumbs = 0
                 served__thumbs = False
-                for dirname in Thumbs._fields:
+                for dirname in THUMB_LDIRS:
                     real = Path(real_thumb_dir, dirname, name + ".png")
                     if not real.exists():
                         missing_thumbs += 1
@@ -1139,7 +1143,7 @@ async def downloader(
                     " {remaining_s:2.1f}s", fg=RED, bold=True
                 )
                 try:
-                    for dirname in Thumbs._fields:
+                    for dirname in THUMB_LDIRS:
                         real = Path(real_thumb_dir, dirname, name + ".png")
                         temp = Path(down_thumb_dir, dirname, name + ".png")
                         downloaded_dict[dirname] = (real, temp)
@@ -1215,9 +1219,9 @@ def strfy(norm_cache, required_score, short_names, nub_verbose, r, urlsdict=None
     if nub_verbose:
         return f"{score_text} {thumb_norm}"
     elif urlsdict:
-        url1 = urlsdict.get(("Named_Boxarts", r), None)
-        url2 = urlsdict.get(("Named_Titles", r), None)
-        url3 = urlsdict.get(("Named_Snaps", r), None)
+        url1 = urlsdict.get((THUMB_LDIRS[0], r), None)
+        url2 = urlsdict.get((THUMB_LDIRS[1], r), None)
+        url3 = urlsdict.get((THUMB_LDIRS[2], r), None)
     else:
         url1 = None
         url2 = None
@@ -1301,9 +1305,9 @@ def displayImages(downloaded: dict):
             # size taken from the SNES snapshot default resolution
             imgs[k] = Image.new("RGBA", (256, 224), (255, 0, 0, 0))
             colors[k] = (0, 0, 0, 0)  # transparent 'border'
-    box = imgs.get("Named_Boxarts", None)
-    title = imgs.get("Named_Titles", None)
-    snap = imgs.get("Named_Snaps", None)
+    box = imgs.get(THUMB_LDIRS[0], None)
+    title = imgs.get(THUMB_LDIRS[1], None)
+    snap = imgs.get(THUMB_LDIRS[2], None)
     # we are trying to make a rectangle, where the left side has the boxart,
     # and the right side has the snap and title, stacked vertically.
     # the height of left and right will be the largest height on the
@@ -1335,9 +1339,9 @@ def displayImages(downloaded: dict):
     title = title.resize((samex, new_y1))
     snap = snap.resize((samex, new_y2))
     # add borders
-    box = ImageOps.expand(box, border=(BORDER_SIZE,) * 4, fill=colors["Named_Boxarts"])
-    title = ImageOps.expand(title, border=(BORDER_SIZE,) * 4, fill=colors["Named_Titles"])
-    snap = ImageOps.expand(snap, border=(BORDER_SIZE,) * 4, fill=colors["Named_Snaps"])
+    box = ImageOps.expand(box, border=(BORDER_SIZE,) * 4, fill=colors[THUMB_LDIRS[0]])
+    title = ImageOps.expand(title, border=(BORDER_SIZE,) * 4, fill=colors[THUMB_LDIRS[1]])
+    snap = ImageOps.expand(snap, border=(BORDER_SIZE,) * 4, fill=colors[THUMB_LDIRS[2]])
     # create a 'paste' image
     combined = Image.new("RGBA", (box.size[0] + title.size[0], box.size[1]))
     combined.paste(box, box=(0, 0))
