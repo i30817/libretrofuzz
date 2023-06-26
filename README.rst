@@ -71,8 +71,9 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
   --address URL         | URL with libretro-thumbnails server. For local files, git clone/unzip packs, run ``'python3 -m http.server'`` in parent dir, and use ``--address 'http://localhost:8000'``.
                         | [default: https://thumbnails.libretro.com]
   --dry-run             Print results only, no delay or image download.
-  --verbose N           | Show length N list: score, name, emoji hyperlinks.
-                        | [x>=1]
+  --limit GAMES         | Show a number of winners or losers. Any equal score winners can download images.
+                        | [default: 1; x>=1]
+  --verbose             Show failed matches.
   --install-completion  Install completion for the current shell.
   --show-completion     Show completion for the current shell, to copy it or customize the installation.
   --help                Show this message and exit.

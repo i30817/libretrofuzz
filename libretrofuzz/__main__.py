@@ -749,9 +749,14 @@ def mainfuzzsingle(
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
     dryrun: bool = Option(False, "--dry-run", help="Print results only, no delay or image download."),
-    verbose: Optional[int] = Option(
-        None, "--verbose", min=1, metavar="N", help="Show length N list: score, name, emoji hyperlinks."
+    limit: Optional[int] = Option(
+        1,
+        "--limit",
+        min=1,
+        metavar="GAMES",
+        help="Show a number of winners or losers. Any equal score winners can download images.",
     ),
+    verbose: bool = Option(False, "--verbose", min=1, help="Show failed matches."),
 ):
     if playlist and not playlist.lower().endswith(".lpl"):
         playlist = playlist + ".lpl"
@@ -813,6 +818,7 @@ def mainfuzzsingle(
                         nofail,
                         nometa,
                         hack,
+                        limit,
                         verbose,
                         nub_verbose,
                         before,
@@ -900,9 +906,14 @@ def mainfuzzall(
         help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
     ),
     dryrun: bool = Option(False, "--dry-run", help="Print results only, no delay or image download."),
-    verbose: Optional[int] = Option(
-        None, "--verbose", min=1, metavar="N", help="Show length N list: score, name, emoji hyperlinks."
+    limit: Optional[int] = Option(
+        1,
+        "--limit",
+        min=1,
+        metavar="GAMES",
+        help="Show a number of winners or losers. Any equal score winners can download images.",
     ),
+    verbose: bool = Option(False, "--verbose", min=1, help="Show failed matches."),
 ):
     (nub_verbose, _, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
 
@@ -942,6 +953,7 @@ def mainfuzzall(
                                 nofail,
                                 nometa,
                                 hack,
+                                limit,
                                 verbose,
                                 nub_verbose,
                                 before,
@@ -1013,7 +1025,8 @@ async def downloader(
     nofail: bool,
     nometa: bool,
     hack: bool,
-    verbose: Optional[int],
+    limit: Optional[int],
+    verbose: bool,
     nub_verbose: bool,
     before: Optional[str],
     tmpdir: Path,
@@ -1082,9 +1095,9 @@ async def downloader(
         if filters and not any(map(lambda x: fnmatch.fnmatch(name, x), filters)):
             continue
         # normalization can make it so that the winner has the same score as the runner up(s)
-        # so enabling 'verbose 2+' can improve results if the server is badly organized
+        # so enabling 'limit 2+' can improve results if the server is badly organized
         # however, do not do it by default, since it's a bit confusing.
-        result = process.extract(name, remote_names, scorer=scorer, limit=verbose or 1)
+        result = process.extract(name, remote_names, scorer=scorer, limit=limit or 1)
         assert result
         _, best_score, _ = result[0]
         winners = [x for x in result if x[1] == best_score and x[1] >= score]
