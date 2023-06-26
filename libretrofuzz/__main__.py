@@ -696,7 +696,7 @@ def mainfuzzsingle(
         min=1,
         max=MAX_WAIT_SECS,
         clamp=True,
-        metavar="FLOAT",
+        metavar="SECS",
         help="Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.",
     ),
     wait_before: Optional[float] = Option(
@@ -705,7 +705,7 @@ def mainfuzzsingle(
         min=1,
         max=MAX_WAIT_SECS,
         clamp=True,
-        metavar="FLOAT",
+        metavar="SECS",
         help="Seconds to skip thumbnails download, enter continues.",
     ),
     filters: Optional[List[str]] = Option(
@@ -853,7 +853,7 @@ def mainfuzzall(
         min=1,
         max=MAX_WAIT_SECS,
         clamp=True,
-        metavar="FLOAT",
+        metavar="SECS",
         help="Seconds after download to skip replacing thumbnails, enter continues. No-op with --no-image.",
     ),
     wait_before: Optional[float] = Option(
@@ -862,7 +862,7 @@ def mainfuzzall(
         min=1,
         max=MAX_WAIT_SECS,
         clamp=True,
-        metavar="FLOAT",
+        metavar="SECS",
         help="Seconds to skip thumbnails download, enter continues.",
     ),
     filters: Optional[List[str]] = Option(
