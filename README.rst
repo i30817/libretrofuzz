@@ -52,26 +52,42 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
                         MacOS default:   ``~/Library/Application Support/RetroArch/config/retroarch.cfg``
 
   --playlist <NAME libretro-fuzz only>
-                        Playlist name with labels used for thumbnail fuzzy matching. If not provided, asked from the user.
+                        | Playlist name with labels used for thumbnail fuzzy matching.
+                        | If not provided, asked from the user.
   --system <NAME libretro-fuzz only>
-                        Directory name in the server to download thumbnails. If not provided, asked from the user.
-  --delay-after SECS    | Seconds after download to skip replacing thumbnails, enter continues. No-op with ``--no-image``.
+                        | Directory name in the server to download thumbnails.
+                        | If not provided, asked from the user.
+  --delay-after SECS    | Seconds after download to skip replacing thumbnails, enter continues.
+                        | No-op with ``--no-image``.
                         | [1<=x<=60]
   --delay SECS          | Seconds to skip thumbnails download, enter continues.
                         | [1<=x<=60]
-  --filter GLOB         Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, ``--filter '*'`` redownloads all.
+  --filter GLOB         | Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times.
+                        | Resets thumbnails, ``--filter '*'`` redownloads all.
   --min SCORE           | 0=any, 100≃equal, 90=default. No-op with ``--no-fail``.
                         | [default: 90; 0<=x<=100]
   --no-fail             Download any score. Equivalent to ``--min 0``.
   --no-image            Don't show images even with chafa installed.
-  --no-merge            Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls. No-op with ``--filter``.
-  --no-meta             Ignores () delimited metadata and may cause false positives. Forced with ``--before``.
-  --hack                Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with ``--before``.
-  --before TEXT         Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.
-  --address URL         | URL with libretro-thumbnails server. For local files, git clone/unzip packs, run ``'python3 -m http.server'`` in parent dir, and use ``--address 'http://localhost:8000'``.
+  --no-merge            | Disables missing thumbnails download for a label if there is at least one in cache to avoid mixing thumbnails from different server directories on repeated calls.
+                        | No-op with ``--filter``.
+  --no-meta             | Ignores () delimited metadata.
+                        | May cause false positives.
+                        | Forced with ``--before``.
+  --hack                | Matches [] delimited metadata, best used if the hack has thumbnails.
+                        | May cause false positives.
+                        | Ignored with ``--before``.
+  --before TEXT         | Use only the part of the label before TEXT to match.
+                        | TEXT may not be inside of brackets of any kind.
+                        | May cause false positives.
+                        | Forces ignoring metadata.
+  --address URL         | URL with libretro-thumbnails server, for local files:
+                        | Go to RA thumbnail dir/git clone/unzip packs;
+                        | Run ``'python3 -m http.server'`` in parent dir;
+                        | Then use ``--address 'http://localhost:8000'``.
                         | [default: https://thumbnails.libretro.com]
   --dry-run             Print results only, no delay or image download.
-  --limit GAMES         | Show a number of winners or losers. Any equal score winners can download images.
+  --limit GAMES         | Show a number of winners or losers.
+                        | Any equal score winners can download images.
                         | [default: 1; x>=1]
   --verbose             Show failed matches.
   --install-completion  Install completion for the current shell.

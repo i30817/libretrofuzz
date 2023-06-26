@@ -712,7 +712,7 @@ def mainfuzzsingle(
         None,
         "--filter",
         metavar="GLOB",
-        help="Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter '*' redownloads all.",
+        help="Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times. Resets thumbnails, --filter '*' redownloads all.",
     ),
     score: int = Option(
         DEF_SCORE,
@@ -732,21 +732,21 @@ def mainfuzzsingle(
     nometa: bool = Option(
         False,
         "--no-meta",
-        help="Ignores () delimited metadata and may cause false positives. Forced with --before.",
+        help="Ignores () delimited metadata. May cause false positives. Forced with --before.",
     ),
     hack: bool = Option(
         False,
         "--hack",
-        help="Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.",
+        help="Matches [] delimited metadata, best used if the hack has thumbnails. May cause false positives. Ignored with --before.",
     ),
     before: Optional[str] = Option(
         None,
-        help="Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.",
+        help="Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind. May cause false positives. Forces ignoring metadata.",
     ),
     address: Optional[str] = Option(
         ADDRESS,
         metavar="URL",
-        help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
+        help="URL with libretro-thumbnails server, for local files: go to RA thumbnail dir/git clone/unzip packs; run 'python3 -m http.server' in parent dir; then use --address 'http://localhost:8000'.",
     ),
     dryrun: bool = Option(False, "--dry-run", help="Print results only, no delay or image download."),
     limit: Optional[int] = Option(
@@ -869,7 +869,7 @@ def mainfuzzall(
         None,
         "--filter",
         metavar="GLOB",
-        help="Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times and resets thumbnails, --filter '*' redownloads all.",
+        help="Restricts downloads to game labels globs - not paths - in the playlist, can be used multiple times. Resets thumbnails, --filter '*' redownloads all.",
     ),
     score: int = Option(
         DEF_SCORE,
@@ -889,21 +889,21 @@ def mainfuzzall(
     nometa: bool = Option(
         False,
         "--no-meta",
-        help="Ignores () delimited metadata and may cause false positives. Forced with --before.",
+        help="Ignores () delimited metadata. May cause false positives. Forced with --before.",
     ),
     hack: bool = Option(
         False,
         "--hack",
-        help="Matches [] delimited metadata and may cause false positives, Best used if the hack has thumbnails. Ignored with --before.",
+        help="Matches [] delimited metadata, best used if the hack has thumbnails. May cause false positives. Ignored with --before.",
     ),
     before: Optional[str] = Option(
         None,
-        help="Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind, may cause false positives but some labels do not have traditional separators. Forces ignoring metadata.",
+        help="Use only the part of the label before TEXT to match. TEXT may not be inside of brackets of any kind. May cause false positives. Forces ignoring metadata.",
     ),
     address: Optional[str] = Option(
         ADDRESS,
         metavar="URL",
-        help="URL with libretro-thumbnails server. For local files, git clone/unzip packs, run 'python3 -m http.server' in parent dir, and use --address 'http://localhost:8000'.",
+        help="URL with libretro-thumbnails server, for local files: go to RA thumbnail dir/git clone/unzip packs; run 'python3 -m http.server' in parent dir; then use --address 'http://localhost:8000'.",
     ),
     dryrun: bool = Option(False, "--dry-run", help="Print results only, no delay or image download."),
     limit: Optional[int] = Option(
