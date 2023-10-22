@@ -314,7 +314,8 @@ class TitleScorer(object):
         (other, other_ns, _, other_ns_subs, other_digits) = self.normcache2[other]
         if name == other or name_ns == other_ns:
             return MAX_SCORE
-
+        if not name_ns:
+            return 0
         remaining = MAX_SCORE - DEF_SCORE
 
         cnbrs = fuzz.ratio(digits, other_digits)  # normalized to 0-100
