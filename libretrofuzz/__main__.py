@@ -497,9 +497,9 @@ class RzipReader(object):
                         bsize = file.read(4)
                     assert checksize == totalsize, f"{checksize} != {totalsize}"
                     f.seek(0)  # reset for the next reader.
-                    yield io.TextIOWrapper(f, encoding='utf-8', errors='ignore')
+                    yield io.TextIOWrapper(f, encoding='utf-8', errors='replace')
             else:
-                yield io.TextIOWrapper(file, encoding='utf-8', errors='ignore')
+                yield io.TextIOWrapper(file, encoding='utf-8', errors='replace')
 
 
 def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails_dir: Path):
