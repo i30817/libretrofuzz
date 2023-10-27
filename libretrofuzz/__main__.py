@@ -525,12 +525,15 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
                 db = r["db_name"][:-4]
                 dbs.append(db)
                 names.append(r["label"])
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         # older version of the playlist format, this has no error correction; the extra lines after the
         # game entries can be between 0 and 5, because retroarch will ignore lines missing at the end.
         with RzipReader(playlist).open() as f:
             # make sure not to count empty lines, which might break the assumptions made here
             data = [x for x in map(str.strip, f.readlines()) if x]
+            if data[2] != 'DETECT':
+                error(f"Corrupt JSON in {playlist}: {e}")
+                raise StopPlaylist()
             gamelineslen = len(data) - (len(data) % 6)
             for i in range(0, gamelineslen, 6):
                 name = data[i + 1]
@@ -938,8 +941,8 @@ def mainfuzzall(
                         )
                     for playlist, system in inSystems:
                         echo(style(f"{system}.lpl -> {system}", bold=True))
-                        names, dbs = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
                         try:
+                            names, dbs = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
                             await downloader(
                                 names,
                                 dbs,
