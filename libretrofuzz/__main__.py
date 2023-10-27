@@ -107,10 +107,11 @@ else:
 
 
 class StopPlaylist(Exception):
-    """this is thrown when http status 521 happens.
+    """this is thrown when a playlist can't be parsed or
+    http status 521 when downloading thumb names which
     cloudflare uses when it can't find the server.
-    Note, parts of server might still be available
-    so this only stops a playlist in libretro-fuzzall"""
+    Other playlists\parts of server might still be available
+    so this only stops all playlists in libretro-fuzzall"""
 
     def __init__(self):
         super().__init__()
@@ -531,10 +532,10 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
         with RzipReader(playlist).open() as f:
             # make sure not to count empty lines, which might break the assumptions made here
             data = [x for x in map(str.strip, f.readlines()) if x]
-            if data[2] != 'DETECT':
-                error(f"Corrupt JSON in {playlist}: {e}")
-                raise StopPlaylist()
             gamelineslen = len(data) - (len(data) % 6)
+            if gameslineslen < 6 or data[2] != 'DETECT':
+                error(f"Corrupt playlist {playlist}: {e}")
+                raise StopPlaylist()
             for i in range(0, gamelineslen, 6):
                 name = data[i + 1]
                 db = data[i + 5][:-4]
