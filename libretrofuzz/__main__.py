@@ -533,7 +533,7 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
             # make sure not to count empty lines, which might break the assumptions made here
             data = [x for x in map(str.strip, f.readlines()) if x]
             gamelineslen = len(data) - (len(data) % 6)
-            if gamelineslen > 0 and data[2] != 'DETECT':
+            if gamelineslen > 0 and data[3] != 'DETECT':
                 error(f"Corrupt playlist {playlist}: {e}")
                 raise StopPlaylist()
             for i in range(0, gamelineslen, 6):
