@@ -832,7 +832,6 @@ def mainfuzzsingle(
                         client,
                     )
         except StopPlaylist:
-            error(f"Unexpected error accessing server directory: {system}")
             raise Exit(code=1)
         except StopProgram:
             error("Cancelled by user, exiting")
@@ -967,7 +966,7 @@ def mainfuzzall(
                                 client,
                             )
                         except StopPlaylist:
-                            error(f"Unexpected error accessing server directory: {system}")
+                            pass
         except StopProgram:
             error("Cancelled by user, exiting")
             raise Exit()
@@ -997,8 +996,9 @@ async def downloadgamenames(client, system, nub_verbose):
                 err = lr_thumb if nub_verbose else link(lr_thumb, emoji)
                 error(f"Unavailable server directory: {err}")
                 l1 = {}
-            # cloudflare down
+            # cloudflare down, give up on all thumb categories since the individual caches are only top level dirs
             elif r.status_code == 521:
+                error(f"Unavailable cloudflare server cache for system: {system}")
                 raise StopPlaylist()
             else:
                 # will go to except if there is a another error
@@ -1069,6 +1069,7 @@ async def downloader(
     remote_names = set()
     remote_names.update(thumbs[0].keys(), thumbs[1].keys(), thumbs[2].keys())
     if not remote_names:
+        error(f"Unavailable server thumbnails for system: {system}")
         raise StopPlaylist()
 
     # preprocess data to build a heuristic later. Do not move
@@ -1185,6 +1186,7 @@ async def downloader(
                                     wait_before,
                                     MAX_RETRIES,
                                     dryrun,
+                                    system,
                                 ):
                                     first_wait = False
                                     downloaded_once = True
@@ -1252,7 +1254,7 @@ def strfy(norm_cache, required_score, short_names, nub_verbose, r, urlsdict=None
 
 
 async def download(
-    client, url, destination, getting_format, waiting_format, first_wait, wait_before, max_retries, dryrun
+    client, url, destination, getting_format, waiting_format, first_wait, wait_before, max_retries, dryrun, system
 ):
     """returns True if downloaded. To download, it must have waited, if first_wait is True.
     Exceptions may happen instead of returning False, but they are all caught outside
@@ -1263,6 +1265,7 @@ async def download(
         try:
             async with client.stream("GET", url, timeout=15) as r:
                 if r.status_code == 521:  # cloudflare exploded, skip the whole playlist
+                    error(f"Unavailable cloudflare server cache for system: {system}")
                     raise StopPlaylist()
                 # broken image or symlink link, skip just this thumb
                 if r.status_code == 400 or r.status_code == 404 or r.status_code == 410:
