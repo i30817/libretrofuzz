@@ -526,6 +526,9 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
                 db = r["db_name"][:-4]
                 dbs.append(db)
                 names.append(r["label"])
+    except UnicodeDecodeError:
+        error(f"Corrupt playlist {playlist}: resave with utf-8 encoding")
+        raise StopPlaylist()
     except json.JSONDecodeError as e:
         # older version of the playlist format, this has no error correction; the extra lines after the
         # game entries can be between 0 and 5, because retroarch will ignore lines missing at the end.
