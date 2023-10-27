@@ -107,10 +107,11 @@ else:
 
 
 class StopPlaylist(Exception):
-    """this is thrown when http status 521 happens.
+    """this is thrown when a playlist can't be parsed or
+    http status 521 when downloading thumb names which
     cloudflare uses when it can't find the server.
-    Note, parts of server might still be available
-    so this only stops a playlist in libretro-fuzzall"""
+    Other playlists\parts of server might still be available
+    so this only stops all playlists in libretro-fuzzall"""
 
     def __init__(self):
         super().__init__()
@@ -525,13 +526,16 @@ def readPlaylistAndPrepareDirectories(playlist: Path, temp_dir: Path, thumbnails
                 db = r["db_name"][:-4]
                 dbs.append(db)
                 names.append(r["label"])
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         # older version of the playlist format, this has no error correction; the extra lines after the
         # game entries can be between 0 and 5, because retroarch will ignore lines missing at the end.
         with RzipReader(playlist).open() as f:
             # make sure not to count empty lines, which might break the assumptions made here
             data = [x for x in map(str.strip, f.readlines()) if x]
             gamelineslen = len(data) - (len(data) % 6)
+            if gamelineslen > 0 and data[2] != 'DETECT':
+                error(f"Corrupt playlist {playlist}: {e}")
+                raise StopPlaylist()
             for i in range(0, gamelineslen, 6):
                 name = data[i + 1]
                 db = data[i + 5][:-4]
@@ -828,7 +832,6 @@ def mainfuzzsingle(
                         client,
                     )
         except StopPlaylist:
-            error(f"Unexpected error accessing server directory: {system}")
             raise Exit(code=1)
         except StopProgram:
             error("Cancelled by user, exiting")
@@ -938,8 +941,8 @@ def mainfuzzall(
                         )
                     for playlist, system in inSystems:
                         echo(style(f"{system}.lpl -> {system}", bold=True))
-                        names, dbs = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
                         try:
+                            names, dbs = readPlaylistAndPrepareDirectories(playlist, tmpdir, thumbnails_dir)
                             await downloader(
                                 names,
                                 dbs,
@@ -963,7 +966,7 @@ def mainfuzzall(
                                 client,
                             )
                         except StopPlaylist:
-                            error(f"Unexpected error accessing server directory: {system}")
+                            pass
         except StopProgram:
             error("Cancelled by user, exiting")
             raise Exit()
@@ -993,8 +996,9 @@ async def downloadgamenames(client, system, nub_verbose):
                 err = lr_thumb if nub_verbose else link(lr_thumb, emoji)
                 error(f"Unavailable server directory: {err}")
                 l1 = {}
-            # cloudflare down
+            # cloudflare down, give up on all thumb categories since the individual caches are only top level dirs
             elif r.status_code == 521:
+                error(f"Unavailable cloudflare server cache for system: {system}")
                 raise StopPlaylist()
             else:
                 # will go to except if there is a another error
@@ -1065,6 +1069,7 @@ async def downloader(
     remote_names = set()
     remote_names.update(thumbs[0].keys(), thumbs[1].keys(), thumbs[2].keys())
     if not remote_names:
+        error(f"Unavailable server thumbnails for system: {system}")
         raise StopPlaylist()
 
     # preprocess data to build a heuristic later. Do not move
@@ -1181,6 +1186,7 @@ async def downloader(
                                     wait_before,
                                     MAX_RETRIES,
                                     dryrun,
+                                    system,
                                 ):
                                     first_wait = False
                                     downloaded_once = True
@@ -1248,7 +1254,7 @@ def strfy(norm_cache, required_score, short_names, nub_verbose, r, urlsdict=None
 
 
 async def download(
-    client, url, destination, getting_format, waiting_format, first_wait, wait_before, max_retries, dryrun
+    client, url, destination, getting_format, waiting_format, first_wait, wait_before, max_retries, dryrun, system
 ):
     """returns True if downloaded. To download, it must have waited, if first_wait is True.
     Exceptions may happen instead of returning False, but they are all caught outside
@@ -1259,6 +1265,7 @@ async def download(
         try:
             async with client.stream("GET", url, timeout=15) as r:
                 if r.status_code == 521:  # cloudflare exploded, skip the whole playlist
+                    error(f"Unavailable cloudflare server cache for system: {system}")
                     raise StopPlaylist()
                 # broken image or symlink link, skip just this thumb
                 if r.status_code == 400 or r.status_code == 404 or r.status_code == 410:
