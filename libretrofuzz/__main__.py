@@ -36,7 +36,6 @@ import platform
 
 
 # external libraries
-from PIL import Image, ImageOps
 from rapidfuzz import process, fuzz
 from bs4 import BeautifulSoup
 from questionary import Style, select
@@ -593,7 +592,8 @@ def error(error: str):
 
 def common_errors(cfg: Path, playlist: str, system: str, address: str):
     """returns tuple (
-    nub_verbose: bool,    #hint to turn off emoji hyperlinks and images
+    no_image: bool,       #hint to turn off images
+    nub_verbose: bool,    #hint to turn off emoji hyperlinks
     thumbnail_dir: Path,  #RA thumbnail dir from the config file
     playlists: [Path],    #sorted list of playlists in the playlist dir
     systems: [str])       #sorted list of available systems on the thumbnail server
@@ -628,9 +628,16 @@ def common_errors(cfg: Path, playlist: str, system: str, address: str):
     # since python 3.8 is the very minimum of this application, and it's for windows 7 and up
     # we only have to disallow 7, 8
     nub_verbose = False
+    no_image = False
     if sys.platform == "win32" and platform.release() in ("7", "8", "8.1"):
         echo("Disabling rich verbose and image output because your windows does not support it")
         nub_verbose = True
+        no_image = True
+    try:
+        from PIL import Image, ImageOps
+    except:
+        echo("Disabling image output because of unsupported png library") #happens in android because pillow won't install
+        no_image = True
     try:
         with Client() as client:
             page = client.get(ADDRESS, timeout=15)
@@ -646,7 +653,7 @@ def common_errors(cfg: Path, playlist: str, system: str, address: str):
     if system and system not in systems:
         error(f"The user provided system name {system} does not match any remote thumbnail system names")
         raise Exit(code=1)
-    return (nub_verbose, playlist_dir, thumbnails_directory, sorted(playlists), sorted(systems))
+    return (no_image, nub_verbose, playlist_dir, thumbnails_directory, sorted(playlists), sorted(systems))
 
 
 def autocomplete(ctx: Context, args: List[str], incomplete: str):
@@ -772,10 +779,10 @@ def mainfuzzsingle(
     if playlist and not playlist.lower().endswith(".lpl"):
         playlist = playlist + ".lpl"
 
-    (nub_verbose, playlist_dir, thumbnails_dir, playlists, systems) = common_errors(
+    (noimg, nub_verbose, playlist_dir, thumbnails_dir, playlists, systems) = common_errors(
         cfg, playlist, system, address
     )
-
+    noimage = noimage or noimg
     custom_style = Style([("answer", "fg:green bold")])
 
     # ask user for these 2 arguments if they're still not set
@@ -925,8 +932,8 @@ def mainfuzzall(
     ),
     verbose: bool = Option(False, "--verbose", min=1, help="Show failed matches."),
 ):
-    (nub_verbose, _, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
-
+    (noimg, nub_verbose, _, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
+    noimage = noimage or noimg
     notInSystems = [
         (playlist, os.path.basename(playlist)[:-4])
         for playlist in playlists
@@ -1061,10 +1068,8 @@ async def downloader(
     # filter disables no-merge since the setting deletes the old images
     if filters:
         nomerge = False
-    # besides the explicit setting these two need to disable images,
-    # one because the console is not ready to print images (or emoji)
-    # the other to prevent unpleasant empty space.
-    if nub_verbose or dryrun:
+    # prevent unpleasant empty space.
+    if dryrun:
         noimage = True
 
     thumbs = Thumbs._make(await downloadgamenames(client, system, nub_verbose))
@@ -1310,6 +1315,7 @@ def displayImages(downloaded: dict):
     this method will display the new images with a green border and
     the old with a gray border and missing as... missing
     """
+    from PIL import Image, ImageOps
     imgs = dict()
     colors = dict()
     BORDER_SIZE = 4
