@@ -90,6 +90,8 @@ if sys.platform == "win32":
                 CONFIG = Path(var, "RetroArch", "retroarch.cfg")
 elif sys.platform == "darwin":
     CONFIG = Path(Path.home(), "Library", "Application Support", "RetroArch", "config", "retroarch.cfg")
+elif hasattr(sys, 'getandroidapilevel'):
+    CONFIG = Path("storage", "emulated", "0", "Android", "data", "com.retroarch.aarch64", "files", "retroarch.cfg")
 else:
     # all the rest based on linux.
     # If they arent based on linux,
