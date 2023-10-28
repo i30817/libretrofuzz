@@ -388,7 +388,7 @@ def normalizer(nometa, hack, t):
         subtitles = t.split(": ")
     subtitles2 = [None] * len(subtitles)
     for i, st in enumerate(subtitles):
-        # remove all symbols, except, ',' and ''', here, unless it would cause a empty string
+        # remove all symbols, except, ',' and ''', here
         # because outside it would catch a subtitle marker
         stt = regex.sub(almost_symbols_pattern, "", st)
         # do not remove symbols if name is all symbols
@@ -474,7 +474,7 @@ def normalizer(nometa, hack, t):
 # Initalization functions, since there are two main programs so the code is reused
 # ---------------------------------------------------------------------------------
 class RzipReader(object):
-    """used to abstract the libretro compressed playlist format"""
+    """used to abstract the libretro compressed playlist format. reads utf 8 encoded files, raises unicodedecodeerror otherwise"""
 
     def __init__(self, file_name):
         self.file_name = file_name
