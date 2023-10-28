@@ -636,7 +636,7 @@ def common_errors(cfg: Path, playlist: str, system: str, address: str):
     try:
         from PIL import Image, ImageOps
     except:
-        echo("Disabling image output in android because of unsupported Png library")
+        echo("Disabling image output because of unsupported png library") #happens in android because pillow won't install
         no_image = True
     try:
         with Client() as client:
@@ -1068,10 +1068,8 @@ async def downloader(
     # filter disables no-merge since the setting deletes the old images
     if filters:
         nomerge = False
-    # besides the explicit setting these two need to disable images,
-    # one because the console is not ready to print images (or emoji)
-    # the other to prevent unpleasant empty space.
-    if nub_verbose or dryrun:
+    # prevent unpleasant empty space.
+    if dryrun:
         noimage = True
 
     thumbs = Thumbs._make(await downloadgamenames(client, system, nub_verbose))
