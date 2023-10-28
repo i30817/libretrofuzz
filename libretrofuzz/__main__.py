@@ -247,16 +247,21 @@ def extdigits(input_str):
 
 
 def removeparenthesis(input_str, open_p="(", close_p=")"):
-    result = ""
+    '''removes all closing and opening characters, and things between outermost open\close characters'''
+    result = ''
+    remainder = ''
     paren_level = 0
     for ch in input_str:
         if ch == open_p:
             paren_level += 1
-        elif (ch == close_p) and paren_level:
+        elif ch == close_p:
             paren_level -= 1
-        elif not paren_level:
+            remainder = ''
+        elif paren_level <= 0:
             result += ch
-    return result
+        else:
+            remainder += ch
+    return result + remainder
 
 
 def extractbefore(before, name):
