@@ -388,9 +388,12 @@ def normalizer(nometa, hack, t):
         subtitles = t.split(": ")
     subtitles2 = [None] * len(subtitles)
     for i, st in enumerate(subtitles):
-        # remove all symbols, except, ',' and ''', here
+        # remove all symbols, except, ',' and ''', here, unless it would cause a empty string
         # because outside it would catch a subtitle marker
-        st = regex.sub(almost_symbols_pattern, "", st)
+        stt = regex.sub(almost_symbols_pattern, "", st)
+        # do not remove symbols if name is all symbols
+        if stt:
+            st = stt
         # CamelCaseNames for local labels are common when there are no spaces
         # do this to normalize for definite articles
         st = " ".join([a for s in regex.split(camelcase_pattern, st) if s and (a := s.strip())])
