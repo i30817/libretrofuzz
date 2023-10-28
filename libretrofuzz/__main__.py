@@ -112,7 +112,7 @@ class StopPlaylist(Exception):
     http status 521 when downloading thumb names which
     cloudflare uses when it can't find the server.
     Other playlists\parts of server might still be available
-    so this only stops all playlists in libretro-fuzzall"""
+    so this does not stop all playlists in libretro-fuzzall"""
 
     def __init__(self):
         super().__init__()
