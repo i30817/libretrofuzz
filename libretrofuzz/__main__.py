@@ -1121,6 +1121,22 @@ async def downloader(
         # if the user used filters, filter everything that doesn't match any of the globs
         if filters and not any(map(lambda x: fnmatch.fnmatch(name, x), filters)):
             continue
+        missing_thumbs = 0
+        # the name that will be used in the filename
+        fname = regex.sub(forbidden, "_", name)
+        # parent directories were created when reading the playlist
+        real_thumb_dir = Path(thumbnails_dir, destination)
+        for dirname in THUMB_LDIRS:
+            real = Path(real_thumb_dir, dirname, fname + ".png")
+            # Delete old images in the case of --filter.
+            # this always happens, for consistency
+            if filters and not dryrun:
+                real.unlink(missing_ok=True)
+            if not real.exists():
+                missing_thumbs += 1
+        # if there are no missing thumbs there is no point searching for similar thumbnails     
+        if missing_thumbs == 0:
+            continue
         # normalization can make it so that the winner has the same score as the runner up(s)
         # so enabling 'limit 2+' can improve results if the server is badly organized
         # however, do not do it by default, since it's a bit confusing.
@@ -1130,39 +1146,19 @@ async def downloader(
         winners = [x for x in result if x[1] == best_score and x[1] >= score]
         show = result if verbose else winners
         name_format = style((normcache[name][0] if short_names else name) + ": ", bold=True)
-        # still remove the forbidden characters
-        # the name will be used in the filename
-        name = regex.sub(forbidden, "_", name)
-        # Delete old images in the case of --filter.
-        # this always happens, for consistency
-        if filters and not dryrun:
-            for dirname in THUMB_LDIRS:
-                Path(thumbnails_dir, destination, dirname, name + ".png").unlink(missing_ok=True)
+
         if winners:
             allow = True
-            # these parent directories were created when reading the playlist
-            # more efficient than doing it a playlist game loop
-            real_thumb_dir = Path(thumbnails_dir, destination)
             down_thumb_dir = Path(tmpdir, destination)
             if nomerge:
                 # to implement no-merge you have to disable downloads on
                 # 'at least one' thumbnail (including user added ones)
-                missing_thumbs = 0
-                served__thumbs = False
-                for dirname in THUMB_LDIRS:
-                    real = Path(real_thumb_dir, dirname, name + ".png")
-                    if not real.exists():
-                        missing_thumbs += 1
-                        if not served__thumbs:
-
-                            def checkremote(winner):
-                                return winner[0] in getattr(thumbs, dirname)
-
-                            served__thumbs = any(map(checkremote, winners))
+                def checkremote(winner):
+                    return winner[0] in getattr(thumbs, dirname)
                 allow = missing_thumbs == 3
                 # despite the above, print only for when it would download
                 # if it was allowed, otherwise it is confusing
-                if not allow and served__thumbs:
+                if not allow and any(map(checkremote, winners)):
                     name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                     nomerge_format = f'{style("Nomerge",     fg=(128,128,128), bold=True)}: {name_format}'
                     echo(nomerge_format)
@@ -1184,8 +1180,8 @@ async def downloader(
                 )
                 try:
                     for dirname in THUMB_LDIRS:
-                        real = Path(real_thumb_dir, dirname, name + ".png")
-                        temp = Path(down_thumb_dir, dirname, name + ".png")
+                        real = Path(real_thumb_dir, dirname, fname + ".png")
+                        temp = Path(down_thumb_dir, dirname, fname + ".png")
                         downloaded_dict[dirname] = (real, temp)
                         for winner in winners:
                             t_name, t_score, _ = winner
