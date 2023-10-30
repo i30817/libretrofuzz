@@ -1134,7 +1134,7 @@ async def downloader(
                 real.unlink(missing_ok=True)
             if not real.exists():
                 missing_thumbs += 1
-        # if there are no missing thumbs there is no point searching for similar thumbnails     
+        # if there are no missing local thumbs there is no point searching for server thumbs
         if missing_thumbs == 0:
             continue
         # normalization can make it so that the winner has the same score as the runner up(s)
