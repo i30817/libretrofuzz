@@ -1068,7 +1068,7 @@ async def downloader(
     skipped = 0
     # not a error to pass a empty playlist
     if len(names) == 0:
-        echo("0/0 successes 0/0 failures 0/0 skipped\in cache")
+        echo("0/0 successes 0/0 failures 0/0 skipped\unavailable\in cache")
         return
     # before implies that the names of the playlists may be cut,
     # so the hack and meta matching must be disabled
@@ -1213,6 +1213,9 @@ async def downloader(
                     success_format = f'{style("Success",   fg=GREEN, bold=True)}: {name_format}'
                     echo(success_format)
                     success += 1
+                else:
+                    # everything that can be downloaded already was
+                    skipped += 1
             except StopProgram as e:
                 name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                 skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
@@ -1229,7 +1232,7 @@ async def downloader(
                 name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                 failure_format = f'{style("Failure",     fg=RED, bold=True)}: {name_format}'
                 echo(failure_format)
-    echo(f"{success}/{len(names)} successes {failure}/{len(names)} failures {skipped}/{len(names)} skipped\in cache")
+    echo(f"{success}/{len(names)} successes {failure}/{len(names)} failures {skipped}/{len(names)} skipped\unavailable\in cache")
 
 
 async def printwait(wait: Optional[float], waiting_format: str):
