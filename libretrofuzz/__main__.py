@@ -1064,8 +1064,10 @@ async def downloader(
     # number of success and failures to print at the end
     failure = 0
     success = 0
+    skipped = 0
     # not a error to pass a empty playlist
     if len(names) == 0:
+        echo("0/0 successes 0/0 failures 0/0 skipped\in cache")
         return
     # before implies that the names of the playlists may be cut,
     # so the hack and meta matching must be disabled
@@ -1117,15 +1119,16 @@ async def downloader(
     scorer = TitleScorer(normcache, normcache2, hack)
     for name, destination in zip(names, dbs):
         await asyncio.sleep(0)  # update key status
-        checkEscape()  # check key status
+        checkEscape()  # check exit key status
         # if the user used filters, filter everything that doesn't match any of the globs
         if filters and not any(map(lambda x: fnmatch.fnmatch(name, x), filters)):
+            skipped += 1
             continue
-        missing_thumbs = 0
         # the name that will be used in the filename
         fname = regex.sub(forbidden, "_", name)
         # parent directories were created when reading the playlist
         real_thumb_dir = Path(thumbnails_dir, destination)
+        missing_thumbs = 0
         for dirname in THUMB_LDIRS:
             real = Path(real_thumb_dir, dirname, fname + ".png")
             # Delete old images in the case of --filter.
@@ -1137,6 +1140,7 @@ async def downloader(
         # if there are no missing local thumbs there is no point searching for server thumbs
         # to implement no-merge you have to disable downloads on 'at least one' thumb
         if missing_thumbs == 0 or (missing_thumbs != 3 and nomerge):
+            skipped += 1
             continue
         # normalization can make it so that the winner has the same score as the runner up(s)
         # so enabling 'limit 2+' can improve results if the server is badly organized
@@ -1217,13 +1221,14 @@ async def downloader(
                 name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                 skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
                 echo(skipped_format)
+                skipped += 1
         else:
             failure += 1
             if verbose:
                 name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
                 failure_format = f'{style("Failure",     fg=RED, bold=True)}: {name_format}'
                 echo(failure_format)
-    echo(f"{success}/{len(names)} successes {failure}/{len(names)} failures")
+    echo(f"{success}/{len(names)} successes {failure}/{len(names)} failures {skipped}/{len(names)} skipped\in cache")
 
 
 async def printwait(wait: Optional[float], waiting_format: str):
