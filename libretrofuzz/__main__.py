@@ -1126,7 +1126,6 @@ async def downloader(
         fname = regex.sub(forbidden, "_", name)
         # parent directories were created when reading the playlist
         real_thumb_dir = Path(thumbnails_dir, destination)
-        printed_nomerge = False 
         for dirname in THUMB_LDIRS:
             real = Path(real_thumb_dir, dirname, fname + ".png")
             # Delete old images in the case of --filter.
