@@ -1126,6 +1126,7 @@ async def downloader(
         fname = regex.sub(forbidden, "_", name)
         # parent directories were created when reading the playlist
         real_thumb_dir = Path(thumbnails_dir, destination)
+        printed_nomerge = False 
         for dirname in THUMB_LDIRS:
             real = Path(real_thumb_dir, dirname, fname + ".png")
             # Delete old images in the case of --filter.
@@ -1135,7 +1136,8 @@ async def downloader(
             if not real.exists():
                 missing_thumbs += 1
         # if there are no missing local thumbs there is no point searching for server thumbs
-        if missing_thumbs == 0:
+        # to implement no-merge you have to disable downloads on 'at least one' thumb
+        if missing_thumbs == 0 or (missing_thumbs != 3 and nomerge):
             continue
         # normalization can make it so that the winner has the same score as the runner up(s)
         # so enabling 'limit 2+' can improve results if the server is badly organized
@@ -1148,88 +1150,74 @@ async def downloader(
         name_format = style((normcache[name][0] if short_names else name) + ": ", bold=True)
 
         if winners:
-            allow = True
             down_thumb_dir = Path(tmpdir, destination)
-            if nomerge:
-                # to implement no-merge you have to disable downloads on
-                # 'at least one' thumbnail (including user added ones)
-                def checkremote(winner):
-                    return winner[0] in getattr(thumbs, dirname)
-                allow = missing_thumbs == 3
-                # despite the above, print only for when it would download
-                # if it was allowed, otherwise it is confusing
-                if not allow and any(map(checkremote, winners)):
-                    name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
-                    nomerge_format = f'{style("Nomerge",     fg=(128,128,128), bold=True)}: {name_format}'
-                    echo(nomerge_format)
-            if allow:
-                first_wait = wait_before is not None
-                downloaded_once = False
-                # dictionary of thumbnailtype -> (old Path, new Path), paths may not exist
-                downloaded_dict = dict()
-                # dictionary of (thumbnailtype,winner) -> url
-                urls = dict()
-                # used inside a loop and more than once, build outside
-                dull_format = name_format + ", ".join((strfy_runtime(x) for x in show))
-                # these can't support links because of tqdm, show the normal names and replace them after
-                getting_format = f'{style("Getting",    fg=BLUE, bold=True)}: {dull_format}' + style(
-                    " {percentage:3.0f}%", fg=BLUE, bold=True
-                )
-                waiting_format = f'{style("Waiting",  fg=YELLOW, bold=True)}: {dull_format}' + style(
-                    " {remaining_s:2.1f}s", fg=RED, bold=True
-                )
-                try:
-                    for dirname in THUMB_LDIRS:
-                        real = Path(real_thumb_dir, dirname, fname + ".png")
-                        temp = Path(down_thumb_dir, dirname, fname + ".png")
-                        downloaded_dict[dirname] = (real, temp)
-                        for winner in winners:
-                            t_name, t_score, _ = winner
-                            # something to download
-                            url = getattr(thumbs, dirname).get(t_name, None)
-                            if not url:
-                                continue
+            first_wait = wait_before is not None
+            downloaded_once = False
+            # dictionary of thumbnailtype -> (old Path, new Path), paths may not exist
+            downloaded_dict = dict()
+            # dictionary of (thumbnailtype,winner) -> url
+            urls = dict()
+            # used inside a loop and more than once, build outside
+            dull_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+            # these can't support links because of tqdm, show the normal names and replace them after
+            getting_format = f'{style("Getting",    fg=BLUE, bold=True)}: {dull_format}' + style(
+                " {percentage:3.0f}%", fg=BLUE, bold=True
+            )
+            waiting_format = f'{style("Waiting",  fg=YELLOW, bold=True)}: {dull_format}' + style(
+                " {remaining_s:2.1f}s", fg=RED, bold=True
+            )
+            try:
+                for dirname in THUMB_LDIRS:
+                    real = Path(real_thumb_dir, dirname, fname + ".png")
+                    temp = Path(down_thumb_dir, dirname, fname + ".png")
+                    downloaded_dict[dirname] = (real, temp)
+                    for winner in winners:
+                        t_name, t_score, _ = winner
+                        # something to download
+                        url = getattr(thumbs, dirname).get(t_name, None)
+                        if not url:
+                            continue
 
-                            # with filters/reset you always download, and
-                            # without only if it doesn't exist already.
-                            if filters or not real.exists():
-                                if await download(
-                                    client,
-                                    url,
-                                    temp,
-                                    getting_format,
-                                    waiting_format,
-                                    first_wait,
-                                    wait_before,
-                                    MAX_RETRIES,
-                                    dryrun,
-                                    system,
-                                ):
-                                    first_wait = False
-                                    downloaded_once = True
-                                    urls[(dirname, winner)] = url
-                                    break
-                    if not noimage and viewer and downloaded_once:
-                        displayImages(downloaded_dict)
-                        if wait_after is not None:
-                            await printwait(wait_after, waiting_format)
-                    if downloaded_once:
-                        for old, new in downloaded_dict.values():
-                            if new.exists():
-                                shutil.move(new, old)
-                        name_format = name_format + ", ".join((strfy_runtime(x, urls) for x in show))
-                        success_format = f'{style("Success",   fg=GREEN, bold=True)}: {name_format}'
-                        echo(success_format)
-                        success += 1
-                except StopProgram as e:
-                    name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
-                    skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
-                    echo(skipped_format)
-                    raise e
-                except StopDownload:
-                    name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
-                    skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
-                    echo(skipped_format)
+                        # with filters/reset you always download, and
+                        # without only if it doesn't exist already.
+                        if filters or not real.exists():
+                            if await download(
+                                client,
+                                url,
+                                temp,
+                                getting_format,
+                                waiting_format,
+                                first_wait,
+                                wait_before,
+                                MAX_RETRIES,
+                                dryrun,
+                                system,
+                            ):
+                                first_wait = False
+                                downloaded_once = True
+                                urls[(dirname, winner)] = url
+                                break
+                if not noimage and viewer and downloaded_once:
+                    displayImages(downloaded_dict)
+                    if wait_after is not None:
+                        await printwait(wait_after, waiting_format)
+                if downloaded_once:
+                    for old, new in downloaded_dict.values():
+                        if new.exists():
+                            shutil.move(new, old)
+                    name_format = name_format + ", ".join((strfy_runtime(x, urls) for x in show))
+                    success_format = f'{style("Success",   fg=GREEN, bold=True)}: {name_format}'
+                    echo(success_format)
+                    success += 1
+            except StopProgram as e:
+                name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+                skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
+                echo(skipped_format)
+                raise e
+            except StopDownload:
+                name_format = name_format + ", ".join((strfy_runtime(x) for x in show))
+                skipped_format = f'{style("Skipped",     fg=(135,135,135), bold=True)}: {name_format}'
+                echo(skipped_format)
         else:
             failure += 1
             if verbose:
