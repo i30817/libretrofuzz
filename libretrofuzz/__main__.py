@@ -20,7 +20,6 @@ from tempfile import TemporaryDirectory
 from contextlib import asynccontextmanager, contextmanager
 from itertools import chain
 from struct import unpack
-from math import isclose
 import json
 import os
 import sys
@@ -1247,7 +1246,7 @@ def strfy(norm_cache, required_score, short_names, nub_verbose, r, urlsdict=None
     thumb_name, thumb_score, _ = r
     thumb_norm = norm_cache[thumb_name][0]
     score_color = RED if thumb_score < required_score else GREEN
-    thumb_magnt = "100" if isclose(thumb_score, 100) else f"{thumb_score:.1f}"
+    thumb_magnt = f"{thumb_score:.1f}" if thumb_score < 100 else "100"
     score_text = style(thumb_magnt, fg=score_color, bold=True)
     if nub_verbose:
         return f"{score_text} {thumb_norm}"
