@@ -1110,7 +1110,7 @@ async def downloader(
 
     # short names bool, got from enviromental variable
     short_names = os.getenv("SHORT")
-    short_names = True if short_names and short_names != "0" else False
+    short_names = short_names and short_names != "0"
 
     # build the function that will be called to print data
     def strfy_runtime(s, urldict=None):
