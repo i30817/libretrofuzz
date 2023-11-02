@@ -1160,7 +1160,7 @@ async def downloader(
                 missing_thumbs += 1
         # if there are no missing local thumbs there is no point searching for server thumbs
         # to implement no-merge you have to disable downloads on 'at least one' thumb
-        if missing_thumbs == 0 or (missing_thumbs != 3 and nomerge):
+        if not filters and ( missing_thumbs == 0 or (missing_thumbs != 3 and nomerge) ):
             skipped += 1
             continue
         # normalization can make it so that the winner has the same score as the runner up(s)
