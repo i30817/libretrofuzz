@@ -1057,7 +1057,6 @@ async def norm2dict(names,remote_names,nometa,hack,before):
     executor = ProcessPoolExecutor()
     norm_format = style("Preparing names: {remaining_s:2.1f}s", fg=BLUE, bold=True)
     try:
-         tasknumber = len(names)+len(remote_names)
          with tqdm(total=tasknumber, bar_format=norm_format, leave=False) as pbar:
              chunks = max(1,int(len(names)/os.cpu_count()))
              for k,i in executor.map(norm_local,repeat(nometa),repeat(hack),repeat(before),names,chunksize=chunks):
