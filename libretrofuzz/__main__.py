@@ -1047,13 +1047,13 @@ def norm(nometa,hack,n):
 def norm_local(nometa,hack,before,n):
     return (n, normalizer(nometa, hack, regex.sub(forbidden, "_", extractbefore(before, n))))
 async def norm2dict(names,remote_names,nometa,hack,before):
-    normcache = dict()
-    normcache2= dict()
     tasknumber = len(names)+len(remote_names)
     if tasknumber < 200:
         normcache = dict(map(lambda n: (n, norm_local(n)), names))
         normcache2 = dict(map(lambda n: (n, norm(n)), remote_names))
         return normcache, normcache2
+    normcache = dict()
+    normcache2= dict()
     executor = ProcessPoolExecutor()
     norm_format = style("Preparing names: {remaining_s:2.1f}s", fg=BLUE, bold=True)
     try:
