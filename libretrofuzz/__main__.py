@@ -328,44 +328,59 @@ class TitleScorer(object):
         self.hack = hack
 
     def __call__(self, name, other, score_cutoff=None):
-        (name, name_ns, _, _, digits) = self.normcache[name]
-        (other, other_ns, _, other_ns_subs, other_digits) = self.normcache2[other]
+        (name, name_ns, name_ns_subs, digits) = self.normcache[name]
+        (other, other_ns, other_ns_subs, other_digits) = self.normcache2[other]
         if name == other or name_ns == other_ns:
             return MAX_SCORE
         if not name_ns:
             return 0
+        # score is based on WRatio (a comprehensive 0-100 weighted heuristic from rapidfuzz)
+        # summed to some custom heuristics
+        # Up to DEF_SCORE WRatio is used with 100 being exactly DEF_SCORE, after the heuristics
+        # if -min is used, above DEF_SCORE, the heuristics will need better fit to win
         remaining = MAX_SCORE - DEF_SCORE
-
-        cnbrs = fuzz.ratio(digits, other_digits)  # normalized to 0-100
-        # 2 heuristics (this time), however they don't both have the same weight
-        increment_common_number = remaining * 0.03
-        increment_common_length = remaining * 0.97
-
-        sum_ns = ""
-        for sub_ns in other_ns_subs:
-            # if you find a exact match on either a subtitle
-            # or a sequence of subtitles from the start, give
-            # a 'winning' score but distingish them by the rest
-            # by name ratio and digits ratio; note that this
-            # doesn't include subtitles in 'name' matching a
-            # subtitle in 'other', that's full of false positives
-            if name_ns == (sum_ns := sum_ns + sub_ns) or name_ns == sub_ns:
-                # reset increment and rest of score
-                rest_of_score = increment_common_number * 0.01 * cnbrs
-                rest_of_score += increment_common_length * 0.01 * fuzz.WRatio(name, other)
-                return DEF_SCORE + rest_of_score
-
-        rest_of_score = increment_common_number * 0.01 * cnbrs  # 100 gives 1
-        common_prop = len(os.path.commonprefix([name_ns, other_ns])) / len(name_ns)
-        rest_of_score += increment_common_length * common_prop
-        # give a penality if you got here and the name you're checking against
-        # already has a perfect match in the playlist being processed. This usually
-        # penalizes hack names but removes a lot of inane false positives
-        # (depending on the playlist completeness). Disable it when processing hacks
-        # TODO remove this when a feature to choose when waiting happens
+        # a 65% heuristics penality if the remote name
+        # already has another perfect match in the playlist
+        # this usually penalizes hack names but can remove 
+        # a lot of inane sequel\prequel false positives
+        # (depending on the playlist completeness)
+        # disable it when processing hacks
         if not self.hack and other in self.normcache:
-            rest_of_score -= remaining * 0.65
-        return rest_of_score + (DEF_SCORE / 100) * fuzz.WRatio(name, other)
+            remaining -= remaining * 0.65
+        # ratio is normalized (0-100) insert-delete distance
+        # of digits found in the names. Denormalized by * 0.01, 100 is 1
+        # 3% of remaining is dedicated to increase score of names with similar digits order
+        rest_of_score = fuzz.ratio(digits, other_digits) * 0.01 * 0.03 * remaining
+        # 97% of remaining score will be used for different heuristics
+        heuristic = remaining * 0.97
+        # used denormalized in all returns, just with different percentages
+        wratio = fuzz.WRatio(name, other) * 0.01
+        # find a exact full name non digit match
+        # (lots of dump or disc numbers as subtitles in some dumps)
+        # on either a subtitle or a sequence of subtitles from the start
+        # note that this doesn't include subtitles in 
+        # 'name' matching a subtitle in 'other' and vice versa
+        # because a subtitle match like this is a strong indicator of a match,
+        # give it the full default score slot, and wratio for the heuristic slot
+        if not name_ns.isdigit():
+            sum_ns = ""
+            for sub_ns in other_ns_subs:
+                if name_ns == sub_ns or name_ns == (sum_ns := sum_ns + sub_ns):
+                    rest_of_score += heuristic * wratio
+                    return DEF_SCORE + rest_of_score
+        if not other_ns.isdigit():
+            sum_ns = ""
+            for sub_ns in name_ns_subs:
+                if other_ns == sub_ns or other_ns == (sum_ns := sum_ns + sub_ns):
+                    rest_of_score += heuristic * wratio
+                    return DEF_SCORE + rest_of_score
+        # heuristic 80% measures if the name being searched is more or less
+        # completely at the start of other name and 20% measures len parity
+        common = len(os.path.commonprefix([name_ns, other_ns])) / len(name_ns)
+        parity = min(len(name_ns),len(other_ns))/max(len(name_ns),len(other_ns))
+        rest_of_score += (heuristic * common * 0.80) + (heuristic * parity * 0.20)
+        # remember that WRatio fills the DEF_SCORE slot
+        return rest_of_score + DEF_SCORE * wratio
 
 # ---------------------------------------------------------------
 # Normalization functions, part of the functions that change both
@@ -463,7 +478,7 @@ def normalizer(nometa, hack, t):
         subtitles2[i] = "".join(st)
     nspaces = "".join(subtitles2)
     ext_digits = extdigits(nspaces)
-    return " ".join(subtitles), nspaces, subtitles, subtitles2, ext_digits
+    return " ".join(subtitles), nspaces, subtitles2, ext_digits
 
 
 # ---------------------------------------------------------------------------------
@@ -1412,5 +1427,5 @@ def fuzzall():
 
 
 if __name__ == "__main__":
-    # print(globals()[sys.argv[1]](*sys.argv[2:]))
+    #print(globals()[sys.argv[1]](*sys.argv[2:]))
     error("Run libretro-fuzz or libretro-fuzzall instead of running the script directly")
