@@ -334,7 +334,7 @@ class TitleScorer(object):
             return MAX_SCORE
         if not name_ns:
             return 0
-        # score is based on WRatio (a comprehensive 0-100 weighted heuristic from rapidfuzz)
+        # score is based on QRatio (a 0-100 heuristic from rapidfuzz, WRatio is better but unacceptably slow)
         # summed to some custom heuristics
         # Up to DEF_SCORE WRatio is used with 100 being exactly DEF_SCORE, after the heuristics
         # if -min is used, above DEF_SCORE, the heuristics will need better fit to win
@@ -354,25 +354,25 @@ class TitleScorer(object):
         # 97% of remaining score will be used for different heuristics
         heuristic = remaining * 0.97
         # used denormalized in all returns, just with different percentages
-        wratio = fuzz.WRatio(name, other) * 0.01
+        ratio = fuzz.QRatio(name, other) * 0.01
         # find a exact full name non digit match
         # (lots of dump or disc numbers as subtitles in some dumps)
         # on either a subtitle or a sequence of subtitles from the start
         # note that this doesn't include subtitles in 
         # 'name' matching a subtitle in 'other' and vice versa
         # because a subtitle match like this is a strong indicator of a match,
-        # give it the full default score slot, and wratio for the heuristic slot
+        # give it the full default score slot, and ratio for the heuristic slot
         if not name_ns.isdigit():
             sum_ns = ""
             for sub_ns in other_ns_subs:
                 if name_ns == sub_ns or name_ns == (sum_ns := sum_ns + sub_ns):
-                    rest_of_score += heuristic * wratio
+                    rest_of_score += heuristic * ratio
                     return DEF_SCORE + rest_of_score
         if not other_ns.isdigit():
             sum_ns = ""
             for sub_ns in name_ns_subs:
                 if other_ns == sub_ns or other_ns == (sum_ns := sum_ns + sub_ns):
-                    rest_of_score += heuristic * wratio
+                    rest_of_score += heuristic * ratio
                     return DEF_SCORE + rest_of_score
         # heuristic measures if the name is more completely at the start of other name
         common = len(os.path.commonprefix([name_ns, other_ns])) / len(name_ns)
@@ -380,7 +380,7 @@ class TitleScorer(object):
         parity = min(len(name_ns),len(other_ns))/max(len(name_ns),len(other_ns))
         rest_of_score += (heuristic * common * 0.80) + (heuristic * parity * 0.20)
         # remember that WRatio fills the DEF_SCORE slot
-        return rest_of_score + DEF_SCORE * wratio
+        return rest_of_score + DEF_SCORE * ratio
 
 # ---------------------------------------------------------------
 # Normalization functions, part of the functions that change both
