@@ -374,9 +374,9 @@ class TitleScorer(object):
                 if other_ns == sub_ns or other_ns == (sum_ns := sum_ns + sub_ns):
                     rest_of_score += heuristic * wratio
                     return DEF_SCORE + rest_of_score
-        # heuristic 80% measures if the name being searched is more or less
-        # completely at the start of other name and 20% measures len parity
+        # heuristic measures if the name is more completely at the start of other name
         common = len(os.path.commonprefix([name_ns, other_ns])) / len(name_ns)
+        # heuristic measures how similar the lenghts of the names are
         parity = min(len(name_ns),len(other_ns))/max(len(name_ns),len(other_ns))
         rest_of_score += (heuristic * common * 0.80) + (heuristic * parity * 0.20)
         # remember that WRatio fills the DEF_SCORE slot
@@ -1427,5 +1427,5 @@ def fuzzall():
 
 
 if __name__ == "__main__":
-    #print(globals()[sys.argv[1]](*sys.argv[2:]))
-    error("Run libretro-fuzz or libretro-fuzzall instead of running the script directly")
+    print(globals()[sys.argv[1]](*sys.argv[2:]))
+    #error("Run libretro-fuzz or libretro-fuzzall instead of running the script directly")
