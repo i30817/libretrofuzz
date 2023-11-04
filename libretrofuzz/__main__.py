@@ -430,8 +430,18 @@ def normalizer(nometa, hack, t):
         st = " ".join([a for s in regex.split(camelcase_pattern, st) if s and (a := s.strip())])
         # Tries to make roman numerals equivalent to normal numbers
         st = replace_roman(st)
-        # such a common variant i zoom in on it
+        # such a common variants i zoom in on it
         st = st.replace("Center", "Centre")
+        st = st.replace("1rst", "First")
+        st = st.replace("2nd", "Second")
+        st = st.replace("3rd", "Third")
+        st = st.replace("4th", "Fourth")
+        st = st.replace("5th", "Fifth")
+        st = st.replace("6th", "Sixth")
+        st = st.replace("7th", "Seventh")
+        st = st.replace("8th", "Eighth")
+        st = st.replace("9th", "Ninth")
+        st = st.replace("10th", "Tenth")
         # normalize case
         st = st.lower()
         # beginning and end definite articles in several european languages (people move them)
