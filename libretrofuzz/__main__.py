@@ -413,8 +413,7 @@ def normalizer(nometa, hack, t):
         # CamelCaseNames for local labels are common when there are no spaces
         # do this to normalize for definite articles
         st = " ".join([a for s in regex.split(camelcase_pattern, st) if s and (a := s.strip())])
-        # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
-        # If both str tested have roman numerals little harm done if XXIV gets turned into 204.
+        # Tries to make roman numerals equivalent to normal numbers
         st = replace_roman(st)
         # such a common variant i zoom in on it
         st = st.replace("Center", "Centre")
