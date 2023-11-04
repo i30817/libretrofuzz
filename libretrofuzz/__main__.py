@@ -434,7 +434,9 @@ def normalizer(nometa, hack, t):
         st = st.replace("Center", "Centre")
         # normalize case
         st = st.lower()
-        st = st.replace("first", "1rst")
+        #common error
+        st = st.replace("1rst", "1st")
+        st = st.replace("first", "1st")
         st = st.replace("second", "2nd")
         st = st.replace("third", "3rd")
         st = st.replace("fourth", "4th")
