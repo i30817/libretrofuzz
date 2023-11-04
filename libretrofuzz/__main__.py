@@ -294,11 +294,18 @@ def removeprefix(name: str, pre: str):
         return name[len(pre) :]
     return name
 
-
-def replaceRoman(source, romana, number):
-    source = regex.sub(rf"([\s']|^){romana}([\s,]|$)", rf"\g<1>{number}\g<2>", source)
-    return source
-
+roman_numerals = {'I':1, 'V':5, 'X':10, 'L':50, 'C':100, 'D':500, 'M':1000}
+def from_roman(num):
+    result = 0
+    for i,c in enumerate(num):
+        if (i+1) == len(num) or roman_numerals[c] >= roman_numerals[num[i+1]]:
+            result += roman_numerals[c]
+        else:
+            result -= roman_numerals[c]
+    return result
+roman_bounded_numeral = regex.compile(r"(?:\b)((?:I[VX]|VI{0,3}|I{1,3})|(?:(X[LC]|LX{0,3}|X{1,3})(?:I[VX]|V?I{0,3}))|(?:(?:C[DM]|DC{0,3}|C{1,3})(?:X[LC]|L?X{0,3})(?:I[VX]|V?I{0,3}))|(?:M+(?:C[DM]|D?C{0,3})(?:X[LC]|L?X{0,3})(?:I[VX]|V?I{0,3})))(?:\b)")
+def replace_roman(source):
+    return roman_bounded_numeral.sub(lambda m:str(from_roman(m.group())), source)
 
 # Used to check the existence of a sixtel compatible terminal image viewer
 def which(executable):
@@ -408,26 +415,7 @@ def normalizer(nometa, hack, t):
         st = " ".join([a for s in regex.split(camelcase_pattern, st) if s and (a := s.strip())])
         # Tries to make roman numerals in the range 1-20 equivalent to normal numbers.
         # If both str tested have roman numerals little harm done if XXIV gets turned into 204.
-        st = replaceRoman(st, "XVIII", "18")
-        st = replaceRoman(st, "XVII", "17")
-        st = replaceRoman(st, "XVI", "16")
-        st = replaceRoman(st, "XIII", "13")
-        st = replaceRoman(st, "XII", "12")
-        st = replaceRoman(st, "XIV", "14")
-        st = replaceRoman(st, "XV", "15")
-        st = replaceRoman(st, "XIX", "19")
-        st = replaceRoman(st, "XX", "20")
-        st = replaceRoman(st, "XI", "11")
-        st = replaceRoman(st, "VIII", "8")
-        st = replaceRoman(st, "VII", "7")
-        st = replaceRoman(st, "VI", "6")
-        st = replaceRoman(st, "III", "3")
-        st = replaceRoman(st, "II", "2")
-        st = replaceRoman(st, "IV", "4")
-        st = replaceRoman(st, "V", "5")
-        st = replaceRoman(st, "IX", "9")
-        st = replaceRoman(st, "X", "10")
-        st = replaceRoman(st, "I", "1")
+        st = replace_roman(st)
         # such a common variant i zoom in on it
         st = st.replace("Center", "Centre")
         # normalize case
@@ -1049,8 +1037,8 @@ def norm_local(nometa,hack,before,n):
 async def norm2dict(names,remote_names,nometa,hack,before):
     tasknumber = len(names)+len(remote_names)
     if tasknumber < 200:
-        normcache = dict(map(lambda n: (n, norm_local(n)), names))
-        normcache2 = dict(map(lambda n: (n, norm(n)), remote_names))
+        normcache = dict(map(lambda n: norm_local(nometa,hack,before,n), names))
+        normcache2 = dict(map(lambda n: norm(nometa,hack,n), remote_names))
         return normcache, normcache2
     normcache = dict()
     normcache2= dict()
