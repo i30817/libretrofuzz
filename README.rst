@@ -85,7 +85,7 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
                         | Run ``'python3 -m http.server'`` in parent dir;
                         | Then use ``--address 'http://localhost:8000'``.
                         | [default: https://thumbnails.libretro.com]
-  --dry-run             Print results only, no delay or image download.
+  --dry-run             Print results only, no image download.
   --limit GAMES         | Show a number of winners or losers.
                         | Any equal score winners can download images.
                         | [default: 1; x>=1]
