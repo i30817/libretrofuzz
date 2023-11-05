@@ -1315,6 +1315,11 @@ async def download(
     the caller loop of thumbnail types that downloads, so the first_wait guard gets
     reset again and only waits once per game
     """
+    # dry-run does not call the server call at all, which does mean that the files may be corrupt on the server
+    if dry-run:
+        if first_wait:
+            await printwait(wait_before, waiting_format)
+        return True
     while True:
         try:
             async with client.stream("GET", url, timeout=15) as r:
@@ -1330,20 +1335,19 @@ async def download(
                     return False
                 if first_wait:
                     await printwait(wait_before, waiting_format)
-                if not dryrun:  # test
-                    with open(destination, "w+b") as f:
-                        with tqdm.wrapattr(
-                            f,
-                            "write",
-                            total=length,
-                            dynamic_ncols=True,
-                            bar_format=getting_format,
-                            leave=False,
-                        ) as w:
-                            async for chunk in r.aiter_raw(4096):
-                                with handleContinueDownload():
-                                    checkDownload()
-                                w.write(chunk)
+                with open(destination, "w+b") as f:
+                    with tqdm.wrapattr(
+                        f,
+                        "write",
+                        total=length,
+                        dynamic_ncols=True,
+                        bar_format=getting_format,
+                        leave=False,
+                    ) as w:
+                        async for chunk in r.aiter_raw(4096):
+                            with handleContinueDownload():
+                                checkDownload()
+                            w.write(chunk)
             return True
         except (RequestError, HTTPStatusError) as e:
             if max_retries <= 0:
