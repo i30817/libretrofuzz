@@ -790,7 +790,7 @@ def mainfuzzsingle(
         metavar="URL",
         help="URL with libretro-thumbnails server, for local files: go to RA thumbnail dir/git clone/unzip packs; run 'python3 -m http.server' in parent dir; then use --address 'http://localhost:8000'.",
     ),
-    dryrun: bool = Option(False, "--dry-run", help="Print results only, no delay or image download."),
+    dryrun: bool = Option(False, "--dry-run", help="Print results only, no image download."),
     limit: Optional[int] = Option(
         1,
         "--limit",
@@ -946,7 +946,7 @@ def mainfuzzall(
         metavar="URL",
         help="URL with libretro-thumbnails server, for local files: go to RA thumbnail dir/git clone/unzip packs; run 'python3 -m http.server' in parent dir; then use --address 'http://localhost:8000'.",
     ),
-    dryrun: bool = Option(False, "--dry-run", help="Print results only, no delay or image download."),
+    dryrun: bool = Option(False, "--dry-run", help="Print results only, no image download."),
     limit: Optional[int] = Option(
         1,
         "--limit",
