@@ -1168,19 +1168,17 @@ async def downloader(
         # parent directories were created when reading the playlist
         real_thumb_dir = Path(thumbnails_dir, destination)
         missing_thumbs = 0
-        for dirname in THUMB_LDIRS:
-            real = Path(real_thumb_dir, dirname, fname + ".png")
-            # Delete old images in the case of --filter.
-            # this always happens, for consistency
-            if filters and not dryrun:
-                real.unlink(missing_ok=True)
-            if not real.exists():
-                missing_thumbs += 1
         # if there are no missing local thumbs there is no point searching for server thumbs
         # to implement no-merge you have to disable downloads on 'at least one' thumb
-        if not filters and ( missing_thumbs == 0 or (missing_thumbs != 3 and nomerge) ):
-            skipped += 1
-            continue
+        # when there are filters all local thumbnails will be deleted, so the search is forced
+        if not filters:
+            for dirname in THUMB_LDIRS:
+                real = Path(real_thumb_dir, dirname, fname + ".png")
+                if not real.exists():
+                    missing_thumbs += 1
+            if missing_thumbs == 0 or (missing_thumbs != 3 and nomerge):
+                skipped += 1
+                continue
         # normalization can make it so that the winner has the same score as the runner up(s)
         # so enabling 'limit 2+' can improve results if the server is badly organized
         # however, do not do it by default, since it's a bit confusing.
@@ -1190,7 +1188,12 @@ async def downloader(
         winners = [x for x in result if x[1] == best_score and x[1] >= score]
         show = result if verbose else winners
         name_format = style((normcache[name][0] if short_names else name) + ": ", bold=True)
-
+        # Delete old images in the case of --filter.
+        # this always happens, for consistency
+        if filters and not dryrun:
+            for dirname in THUMB_LDIRS:
+                real = Path(real_thumb_dir, dirname, fname + ".png")
+                real.unlink(missing_ok=True)
         if winners:
             down_thumb_dir = Path(tmpdir, destination)
             first_wait = wait_before is not None
@@ -1325,10 +1328,10 @@ async def download(
                 length = int(r.headers["Content-Length"])
                 if length < 100:  # obviously corrupt 'thumbnail', skip this thumb
                     return False
+                if first_wait:
+                    await printwait(wait_before, waiting_format)
                 if not dryrun:  # test
                     with open(destination, "w+b") as f:
-                        if first_wait:
-                            await printwait(wait_before, waiting_format)
                         with tqdm.wrapattr(
                             f,
                             "write",
