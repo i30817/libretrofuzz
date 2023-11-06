@@ -336,8 +336,7 @@ class TitleScorer(object):
             return 0
         # score is based on QRatio (a 0-100 heuristic from rapidfuzz, WRatio is better but unacceptably slow)
         # summed to some custom heuristics
-        # Up to DEF_SCORE WRatio is used with 100 being exactly DEF_SCORE, after the heuristics
-        # if -min is used, above DEF_SCORE, the heuristics will need better fit to win
+        # Up to DEF_SCORE QRatio is used with 100 being exactly DEF_SCORE, after the heuristics
         remaining = MAX_SCORE - DEF_SCORE
         # a 65% heuristics penality if the remote name
         # already has another perfect match in the playlist
