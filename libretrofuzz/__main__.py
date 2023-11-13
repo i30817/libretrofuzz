@@ -1315,7 +1315,7 @@ async def download(
     reset again and only waits once per game
     """
     # dry-run does not call the server call at all, which does mean that the files may be corrupt on the server
-    if dry-run:
+    if dryrun:
         if first_wait:
             await printwait(wait_before, waiting_format)
         return True
