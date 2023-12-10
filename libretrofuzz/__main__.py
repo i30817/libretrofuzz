@@ -664,7 +664,7 @@ def common_errors(cfg: Path, playlist: str, system: str, address: str):
         echo("Disabling image output because of unsupported png library") #happens in android because pillow won't install
         no_image = True
     try:
-        with Client() as client:
+        with Client(verify=False) as client:
             page = client.get(ADDRESS, timeout=15)
             soup = BeautifulSoup(page.text, "html.parser")
         systems = [
@@ -838,7 +838,7 @@ def mainfuzzsingle(
 
     async def runit():
         try:
-            async with lock_keys(), AsyncClient() as client:
+            async with lock_keys(), AsyncClient(verify=False) as client:
                 # temporary dir for downloads (required to prevent clobbering)
                 # parent directory of this temp dir is the same as the
                 # RA thumbnail dir to make mv the file just renaming, not cp
@@ -970,7 +970,7 @@ def mainfuzzall(
 
     async def runit():
         try:
-            async with lock_keys(), AsyncClient() as client:
+            async with lock_keys(), AsyncClient(verify=False) as client:
                 with TemporaryDirectory(prefix="libretrofuzz", dir=thumbnails_dir) as tmpdir:
                     for playlist, system in notInSystems:
                         echo(
