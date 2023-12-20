@@ -51,6 +51,8 @@ libretro-fuzzall/libretro-fuzz [OPTIONS] [CFG]
 
                         MacOS default:   ``~/Library/Application Support/RetroArch/config/retroarch.cfg``
 
+                        Android default: ``/storage/emulated/0/Android/data/com.retroarch/files/retroarch.cfg``
+
   --playlist <NAME libretro-fuzz only>
                         | Playlist name with labels used for thumbnail fuzzy matching.
                         | If not provided, asked from the user.
@@ -108,4 +110,4 @@ In windows, you'll want to check the option to “Add Python to PATH” when ins
 
 In android, first install termux from `F-Droid <https://f-droid.org/packages/com.termux/>`_ (play store version is out of date and can't be updated), then run in termux ``pkg install python3 termux-tools ; termux-setup-storage``.
 
-The first command installs python3 (and pip3) and some termux scripts, the second command will make a symlink to the shared storage of android so it's easier to pass a retroarch.cfg file, or navigate to a directory to use the local http.server --address trick (to run the server and run the program at the same time, in termux you can open multiple sessions of the shell by touch and hold near the top left edge).
+The first command installs python3 (and pip3) and some termux scripts, the second command will make a symlink to the shared storage of android so it's easier to pass a retroarch.cfg file, or navigate to a directory to use the local http.server ``--address`` trick (to run the server and run the program at the same time, in termux you can open multiple sessions of the shell by touch and hold near the top left edge).
