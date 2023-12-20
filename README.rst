@@ -105,3 +105,5 @@ To install the program, type on the cmd line
 +----------------+---------------------------------------------------------------------------------------------+
 
 In windows, you'll want to check the option to “Add Python to PATH” when installing python, to be able to install and execute the script from any path of the cmd line.
+
+In android, you'll want to install termux from `F-Droid <https://f-droid.org/packages/com.termux/>`_ (play store version is out of date and can't be updated by the maintainers because of a AWOL administrator), then run in termux ``pkg install python3 termux-tools ; termux-setup-storage``. The second command will make some symlinks to the shared storage directory of android so it's easier to pass a retroarch.cfg file, or navigate to a directory to use the local --address trick if you need that.
