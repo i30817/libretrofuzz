@@ -1084,7 +1084,8 @@ async def norm2dict(names,remote_names,nometa,hack,before):
                  normcache2[k]=i
                  pbar.update(1)
     finally:
-        if int(platform.python_version_tuple()[0]) >= 3 and int(platform.python_version_tuple()[1]) > 8:
+        major = int(platform.python_version_tuple()[0])
+        if major > 3 or (major == 3 and int(platform.python_version_tuple()[1]) > 8):
             executor.shutdown(wait=True,cancel_futures=True)
         else:
             #TODO remove when the program drops python 3.8 compatibility (windows vista)
