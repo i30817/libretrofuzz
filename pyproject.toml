@@ -11,7 +11,7 @@ repository = "https://github.com/i30817/libretrofuzz"
 python = "^3.8"
 beautifulsoup4 = "^4.12.2"
 questionary = "^2.0.1"
-typer = {extras = ["all"], version = "^0.9.0"}
+typer = {extras = ["all"], version = "^0.15.4"}
 rapidfuzz = "^3.5.1"
 httpx = "^0.25.0"
 tqdm = "^4.66.1"
