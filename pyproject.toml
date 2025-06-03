@@ -12,8 +12,8 @@ python = "^3.8"
 beautifulsoup4 = "^4.12.2"
 questionary = "^2.0.1"
 typer = {extras = ["all"], version = "^0.15.4"}
-rapidfuzz = "^3.5.1"
-httpx = "^0.25.0"
+rapidfuzz = "^3.9.7"
+httpx = "^0.28.1"
 tqdm = "^4.66.1"
 prompt_toolkit = "^3.0.36"
 pillow = {version = "^10.1.0", markers = "'aarch64' not in platform_machine and 'armv8' not in platform_machine" }
