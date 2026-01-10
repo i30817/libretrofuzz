@@ -60,10 +60,10 @@ MAX_SCORE = 100
 MAX_RETRIES = 3
 MAX_WAIT_SECS = 60
 # Local libretro thumbnail directories
-THUMB_LDIRS = ["Named_Boxarts", "Named_Titles", "Named_Snaps"]
+THUMB_LDIRS = ["Named_Boxarts", "Named_Titles", "Named_Snaps", "Named_Logos"]
 # Server thumbnail directories, change if the server
 # is organized the same way but with different names
-THUMB_SDIRS = ["Named_Boxarts", "Named_Titles", "Named_Snaps"]
+THUMB_SDIRS = ["Named_Boxarts", "Named_Titles", "Named_Snaps", "Named_Logos"]
 # 00-1f are ascii control codes, rest are illegal windows filename chars according to powershell + &
 forbidden = regex.compile(
     r"[\u0022\u003c\u003e\u007c\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008"
@@ -1019,7 +1019,7 @@ async def downloadgamenames(client, system, nub_verbose):
     lr_thumbs = ADDRESS + "/" + quote(system)  # then get the thumbnails from the system name
     args = []
     try:
-        for tdir, emoji in zip(THUMB_SDIRS, ["🎴", "🎬", "📸"]):
+        for tdir, emoji in zip(THUMB_SDIRS, ["🎴", "🎬", "📸", "▶️"]):
             lr_thumb = f"{lr_thumbs}/{tdir}/"
             response = ""
             async with client.stream("GET", lr_thumb, timeout=15) as r:
@@ -1298,15 +1298,18 @@ def strfy(norm_cache, required_score, short_names, nub_verbose, r, urlsdict=None
         url1 = urlsdict.get((THUMB_LDIRS[0], r), None)
         url2 = urlsdict.get((THUMB_LDIRS[1], r), None)
         url3 = urlsdict.get((THUMB_LDIRS[2], r), None)
+        url4 = urlsdict.get((THUMB_LDIRS[3], r), None)
     else:
         url1 = None
         url2 = None
         url3 = None
+        url4 = None
     thumb_text = thumb_norm if short_names else thumb_name
     linked1 = link(url1, "🎴") if url1 else ""
     linked2 = link(url2, "🎬") if url2 else ""
     linked3 = link(url3, "📸") if url3 else ""
-    return f"{score_text} {thumb_text}{linked1}{linked2}{linked3}"
+    linked4 = link(url4, "▶️") if url4 else ""
+    return f"{score_text} {thumb_text}{linked1}{linked2}{linked3}{linked4}"
 
 
 async def download(
@@ -1390,6 +1393,7 @@ def displayImages(downloaded: dict):
     box = imgs.get(THUMB_LDIRS[0], None)
     title = imgs.get(THUMB_LDIRS[1], None)
     snap = imgs.get(THUMB_LDIRS[2], None)
+    logo = imgs.get(THUMB_LDIRS[3], None)
     # we are trying to make a rectangle, where the left side has the boxart,
     # and the right side has the snap and title, stacked vertically.
     # the height of left and right will be the largest height on the
@@ -1401,6 +1405,11 @@ def displayImages(downloaded: dict):
         x = max(round(x * wanted_box_y / y), 1)
         y = wanted_box_y
     box = box.resize((x, y))
+    # resize logo to match box width
+    x3, y3 = logo.size
+    logo_x = x
+    logo_y = max(1, round(y3 * logo_x / x3))
+    logo = logo.resize((logo_x, logo_y))
     # the right side will adjust the width until title and snap are the
     # same width and the desired height is reached (minus inner borders).
     wanted_y = wanted_box_y - BORDER_SIZE * 2
@@ -1424,9 +1433,11 @@ def displayImages(downloaded: dict):
     box = ImageOps.expand(box, border=(BORDER_SIZE,) * 4, fill=colors[THUMB_LDIRS[0]])
     title = ImageOps.expand(title, border=(BORDER_SIZE,) * 4, fill=colors[THUMB_LDIRS[1]])
     snap = ImageOps.expand(snap, border=(BORDER_SIZE,) * 4, fill=colors[THUMB_LDIRS[2]])
+    logo = ImageOps.expand(logo, border=(BORDER_SIZE,) * 4, fill=colors[THUMB_LDIRS[3]])
     # create a 'paste' image
-    combined = Image.new("RGBA", (box.size[0] + title.size[0], box.size[1]))
+    combined = Image.new("RGBA", (box.size[0] + title.size[0], box.size[1] + logo.size[1]))
     combined.paste(box, box=(0, 0))
+    combined.paste(logo, box=(0, box.size[1]))
     combined.paste(title, box=(box.size[0], 0))
     combined.paste(snap, box=(box.size[0], title.size[1]))
     # save it, print TODO if a _good_ python sixtel library happens, replace this
