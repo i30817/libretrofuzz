@@ -1,1 +1,0 @@
-# This would normally contain the changes made to integrate --rename-labels support.
