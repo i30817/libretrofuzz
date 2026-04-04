@@ -114,7 +114,7 @@ class StopPlaylist(Exception):
     """this is thrown when a playlist can't be parsed or
     http status 521 when downloading thumb names which
     cloudflare uses when it can't find the server.
-    Other playlists\parts of server might still be available
+    Other playlists or parts of server might still be available
     so this does not stop all playlists in libretro-fuzzall"""
 
     def __init__(self):
@@ -250,7 +250,7 @@ def extdigits(input_str):
 
 
 def removeparenthesis(input_str, open_p="(", close_p=")"):
-    '''left associates open\close pairs and removes those pairs, adding remainder to the end if unclosed'''
+    r'''left associates open\close pairs and removes those pairs, adding remainder to the end if unclosed'''
     result = ''
     remainder = ''
     paren_level = 0
@@ -888,7 +888,7 @@ def mainfuzzsingle(
 def mainfuzzall(
     cfg: Path = Argument(
         CONFIG,
-        help="Path to the retroarch cfg file. If not default, asked from the user.",
+        help="Path to the retroarch cfg file. If not defau	lt, asked from the user.",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -1113,12 +1113,12 @@ async def rename_labels_in_playlist(
     dryrun,
     playlist_path,
     verbose,
+    scorer,
 ):
     """Rename playlist labels using fuzzy matching scores."""
     rename_map = {}
     renamed_count = 0
     unchanged_count = 0
-    
     for idx, name in enumerate(names):
         result = process.extract(name, remote_names, scorer=scorer, limit=1)
         if result:
@@ -1138,25 +1138,20 @@ async def rename_labels_in_playlist(
             if verbose:
                 status = style("Keep", fg=YELLOW, bold=True)
                 echo(f"{status}: '{name}' (no match)")
-    
     if not dryrun and rename_map and playlist_path:
         try:
             update_playlist_labels(playlist_path, rename_map)
             echo(f"\n{style('Updated', fg=GREEN, bold=True)}: {playlist_path.name}")
         except Exception as e:
             error(f"Failed to update playlist: {e}")
-    
     echo(f"\n{renamed_count}/{len(names)} renamed, {unchanged_count} unchanged")
 
 
 def update_playlist_labels(playlist_path, rename_map):
     """Update playlist labels"""
     try:
-        # Read existing playlist
         with RzipReader(playlist_path).open() as f:
             data = json.load(f)
-        
-        # Apply renames
         for idx, new_label in rename_map.items():
             if idx < len(data["items"]):
                 data["items"][idx]["label"] = new_label
@@ -1186,7 +1181,7 @@ async def downloader(
     tmpdir: Path,
     thumbnails_dir: Path,
     client: AsyncClient,
-    rename_labels: bool = False,
+    rename_labels: bool,
     playlist_path: Optional[Path],
 ):
     # number of success and failures to print at the end
