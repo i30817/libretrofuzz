@@ -888,7 +888,7 @@ def mainfuzzsingle(
 def mainfuzzall(
     cfg: Path = Argument(
         CONFIG,
-        help="Path to the retroarch cfg file. If not defau	lt, asked from the user.",
+        help="Path to the retroarch cfg file. If not default, asked from the user.",
         exists=True,
         file_okay=True,
         dir_okay=False,
