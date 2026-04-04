@@ -39,7 +39,7 @@ import platform
 # external libraries
 from rapidfuzz import process, fuzz
 from bs4 import BeautifulSoup
-from questionary import Style, select
+from questionary import Style, select, Choice
 from httpx import RequestError, HTTPStatusError, Client, AsyncClient
 from tqdm import trange, tqdm
 from typer.colors import YELLOW, RED, BLUE, GREEN
@@ -888,7 +888,7 @@ def mainfuzzsingle(
 def mainfuzzall(
     cfg: Path = Argument(
         CONFIG,
-        help="Path to the retroarch cfg file. If not default, asked from the user.",
+        help="Path to the retroarch cfg file. If not defau	lt, asked from the user.",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -1114,20 +1114,56 @@ async def rename_labels_in_playlist(
     playlist_path,
     verbose,
     scorer,
+    limit,
 ):
-    """Rename playlist labels using fuzzy matching scores."""
+    """Rename playlist labels using fuzzy matching scores.
+
+    When limit > 1, presents multiple candidates to the user for selection.
+    User must choose if there are multiple matches above the score threshold.
+    """
     rename_map = {}
     renamed_count = 0
     unchanged_count = 0
+
     for idx, name in enumerate(names):
-        result = process.extract(name, remote_names, scorer=scorer, limit=1)
+        await exitcheck()
+        result = process.extract(name, remote_names, scorer=scorer, limit=limit or 1)
         if result:
-            matched_name, best_score, _ = result[0]
+            _, best_score, _ = result[0]
+
             if best_score >= score:
-                rename_map[idx] = matched_name
-                renamed_count += 1
-                status = style("Rename", fg=GREEN, bold=True)
-                echo(f"{status}: '{name}' -> '{matched_name}' ({best_score:.1f})")
+                # Get all matches with score >= threshold within the limit
+                candidates = [x for x in result if x[1] >= score]
+                if len(candidates) > 1:
+                    # Present choices to user
+                    choices = [Choice('no')]
+                    choices += [f"{c[0]} ({c[1]:.1f})" for c in candidates]
+                    custom_style = Style([("answer", "fg:green bold")])
+                    choice_str = await select(
+                        f"Multiple matches for '{name}'. Choose one:",
+                        choices,
+                        style=custom_style,
+                        qmark="",
+                    ).ask_async()
+                    if choice_str == None: #user ctrl+c
+                        raise Exit(code=1)
+                    if choice_str != 'no':
+                        # Extract the matched name from the choice string
+                        matched_name = choice_str.rsplit(" (", 1)[0]
+                        rename_map[idx] = matched_name
+                        renamed_count += 1
+                        best_score_choice = next(c[1] for c in candidates if c[0] == matched_name)
+                        status = style("Rename", fg=GREEN, bold=True)
+                        echo(f"{status}: '{name}' -> '{matched_name}' ({best_score_choice:.1f})")
+                    else:
+                        unchanged_count += 1
+                else:
+                    # Single match
+                    matched_name = result[0][0]
+                    rename_map[idx] = matched_name
+                    renamed_count += 1
+                    status = style("Rename", fg=GREEN, bold=True)
+                    echo(f"{status}: '{name}' -> '{matched_name}' ({best_score:.1f})")
             else:
                 unchanged_count += 1
                 if verbose:
@@ -1232,7 +1268,7 @@ async def downloader(
     if rename_labels:
         await rename_labels_in_playlist(
             names, remote_names, score, dryrun,
-            playlist_path, verbose, scorer
+            playlist_path, verbose, scorer, limit
         )
         return
     for name, destination in zip(names, dbs):
