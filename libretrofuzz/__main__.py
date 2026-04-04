@@ -799,6 +799,11 @@ def mainfuzzsingle(
         metavar="GAMES",
         help="Show a number of winners or losers. Any equal score winners can download images.",
     ),
+    rename_labels: bool = Option(
+        False,
+        "--rename-labels",
+        help="Instead of downloading thumbnails, rename playlist labels using fuzzy matching scores. Only renames if score meets --min threshold.",
+    ),
     verbose: bool = Option(False, "--verbose", min=1, help="Show failed matches."),
 ):
     if playlist and not playlist.lower().endswith(".lpl"):
@@ -868,6 +873,8 @@ def mainfuzzsingle(
                         tmpdir,
                         thumbnails_dir,
                         client,
+                        rename_labels=rename_labels,
+                        playlist_path=Path(playlist_dir, playlist),
                     )
         except StopPlaylist:
             raise Exit(code=1)
@@ -955,6 +962,11 @@ def mainfuzzall(
         metavar="GAMES",
         help="Show a number of winners or losers. Any equal score winners can download images.",
     ),
+    rename_labels: bool = Option(
+        False,
+        "--rename-labels",
+        help="Instead of downloading thumbnails, rename playlist labels using fuzzy matching scores. Only renames if score meets --min threshold.",
+    ),
     verbose: bool = Option(False, "--verbose", min=1, help="Show failed matches."),
 ):
     (noimg, nub_verbose, _, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
@@ -1002,6 +1014,8 @@ def mainfuzzall(
                                 tmpdir,
                                 thumbnails_dir,
                                 client,
+                                rename_labels=rename_labels,
+                                playlist_path=Path(playlist_dir, playlist),
                             )
                         except StopPlaylist:
                             pass
@@ -1092,6 +1106,65 @@ async def norm2dict(names,remote_names,nometa,hack,before):
             executor.shutdown(wait=True)
     return normcache,normcache2
 
+async def rename_labels_in_playlist(
+    names,
+    remote_names,
+    score,
+    dryrun,
+    playlist_path,
+    verbose,
+):
+    """Rename playlist labels using fuzzy matching scores."""
+    rename_map = {}
+    renamed_count = 0
+    unchanged_count = 0
+    
+    for idx, name in enumerate(names):
+        result = process.extract(name, remote_names, scorer=scorer, limit=1)
+        if result:
+            matched_name, best_score, _ = result[0]
+            if best_score >= score:
+                rename_map[idx] = matched_name
+                renamed_count += 1
+                status = style("Rename", fg=GREEN, bold=True)
+                echo(f"{status}: '{name}' -> '{matched_name}' ({best_score:.1f})")
+            else:
+                unchanged_count += 1
+                if verbose:
+                    status = style("Keep", fg=YELLOW, bold=True)
+                    echo(f"{status}: '{name}' (score {best_score:.1f} < {score})")
+        else:
+            unchanged_count += 1
+            if verbose:
+                status = style("Keep", fg=YELLOW, bold=True)
+                echo(f"{status}: '{name}' (no match)")
+    
+    if not dryrun and rename_map and playlist_path:
+        try:
+            update_playlist_labels(playlist_path, rename_map)
+            echo(f"\n{style('Updated', fg=GREEN, bold=True)}: {playlist_path.name}")
+        except Exception as e:
+            error(f"Failed to update playlist: {e}")
+    
+    echo(f"\n{renamed_count}/{len(names)} renamed, {unchanged_count} unchanged")
+
+
+def update_playlist_labels(playlist_path, rename_map):
+    """Update playlist labels"""
+    try:
+        # Read existing playlist
+        with RzipReader(playlist_path).open() as f:
+            data = json.load(f)
+        
+        # Apply renames
+        for idx, new_label in rename_map.items():
+            if idx < len(data["items"]):
+                data["items"][idx]["label"] = new_label
+        with open(playlist_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        raise Exception(f"Error updating playlist {playlist_path}: {e}")
+
 async def downloader(
     names: [str],
     dbs: [str],
@@ -1113,6 +1186,8 @@ async def downloader(
     tmpdir: Path,
     thumbnails_dir: Path,
     client: AsyncClient,
+    rename_labels: bool = False,
+    playlist_path: Optional[Path],
 ):
     # number of success and failures to print at the end
     failure = 0
@@ -1159,6 +1234,12 @@ async def downloader(
         return strfy(normcache2, score, short_names, nub_verbose, s, urldict)
 
     scorer = TitleScorer(normcache, normcache2, hack)
+    if rename_labels:
+        await rename_labels_in_playlist(
+            names, remote_names, score, dryrun,
+            playlist_path, verbose, scorer
+        )
+        return
     for name, destination in zip(names, dbs):
         await exitcheck()
         # if the user used filters, filter everything that doesn't match any of the globs
