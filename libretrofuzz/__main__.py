@@ -1115,6 +1115,7 @@ async def rename_labels_in_playlist(
     verbose,
     scorer,
     limit,
+    filters,
 ):
     """Rename playlist labels using fuzzy matching scores.
 
@@ -1127,6 +1128,10 @@ async def rename_labels_in_playlist(
 
     for idx, name in enumerate(names):
         await exitcheck()
+        # if the user used filters, filter everything that doesn't match any filter
+        if filters and not any(map(lambda x: fnmatch.fnmatch(name, x), filters)):
+            unchanged_count += 1
+            continue
         result = process.extract(name, remote_names, scorer=scorer, limit=limit or 1)
         if result:
             _, best_score, _ = result[0]
@@ -1268,7 +1273,7 @@ async def downloader(
     if rename_labels:
         await rename_labels_in_playlist(
             names, remote_names, score, dryrun,
-            playlist_path, verbose, scorer, limit
+            playlist_path, verbose, scorer, limit, filters
         )
         return
     for name, destination in zip(names, dbs):
