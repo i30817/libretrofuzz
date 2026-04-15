@@ -619,6 +619,7 @@ def common_errors(cfg: Path, playlist: str, system: str, address: str):
     """returns tuple (
     no_image: bool,       #hint to turn off images
     nub_verbose: bool,    #hint to turn off emoji hyperlinks
+    playlist_dir: Path,   #RA playlist dir from the config file
     thumbnail_dir: Path,  #RA thumbnail dir from the config file
     playlists: [Path],    #sorted list of playlists in the playlist dir
     systems: [str])       #sorted list of available systems on the thumbnail server
@@ -969,7 +970,9 @@ def mainfuzzall(
     ),
     verbose: bool = Option(False, "--verbose", min=1, help="Show failed matches."),
 ):
-    (noimg, nub_verbose, _, thumbnails_dir, playlists, systems) = common_errors(cfg, None, None, address)
+    (noimg, nub_verbose, playlist_dir, thumbnails_dir, playlists, systems) = common_errors(
+        cfg, None, None, address
+    )
     noimage = noimage or noimg
     notInSystems = [
         (playlist, os.path.basename(playlist)[:-4])
